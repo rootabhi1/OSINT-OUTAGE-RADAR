@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0A0D12;
+  --foreground: #E7E9EC;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Slim, low-contrast scrollbars fit the console aesthetic better than the
+   default browser chrome. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0F16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1E2734;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2A3543;
+}
+
+.maplibregl-ctrl-top-right .maplibregl-ctrl {
+  background: #0B0F16;
+  border: 1px solid #1E2734;
+}
+.maplibregl-ctrl button {
+  background: #0B0F16 !important;
+}
+.maplibregl-ctrl-attrib {
+  background: transparent !important;
+  color: #5B6572 !important;
+  font-size: 9px !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: #8A93A0 !important;
+}
