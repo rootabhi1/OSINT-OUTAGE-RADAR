@@ -42,7 +42,7 @@ To see real data locally, get a free Cloudflare Radar token:
 ## 2. Push to your repo
 
 This project lives at
-[github.com/rootabhi1/OSINT-OUTAGE-RADAR](https://github.com/rootabhi1/OSINT-OUTAGE-RADAR).
+[github.com/rootabhi1/OSINT-OUTAGE-RADAR](https://rootabhi1.github.io/OSINT-OUTAGE-RADAR/).
 
 I can't push to it directly (no credentials/access from here) — but it's five
 commands:
