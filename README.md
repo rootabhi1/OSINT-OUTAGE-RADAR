@@ -39,23 +39,13 @@ To see real data locally, get a free Cloudflare Radar token:
 
 ---
 
-## 2. Create the GitHub repo and push
+## 2. Push to your repo
 
-I can't push to your GitHub for you (no credentials/access from here) — but
-it's five commands.
+This project lives at
+[github.com/rootabhi1/OSINT-OUTAGE-RADAR](https://github.com/rootabhi1/OSINT-OUTAGE-RADAR).
 
-**Create the repo** — pick one:
-
-- **Web UI**: go to [github.com/new](https://github.com/new), name it (e.g.
-  `infra-outage-radar`), leave it empty (no README/license — you already
-  have those), click **Create repository**.
-- **GitHub CLI**, if you have `gh` installed:
-  ```bash
-  gh repo create infra-outage-radar --public --source=. --remote=origin
-  ```
-  (this also sets the remote for you — skip the `git remote add` step below)
-
-**Push the code:**
+I can't push to it directly (no credentials/access from here) — but it's five
+commands:
 
 ```bash
 cd infra-outage-radar
@@ -63,27 +53,40 @@ git init
 git add .
 git commit -m "Initial commit: Signal Loss outage radar"
 git branch -M main
-git remote add origin https://github.com/<your-username>/infra-outage-radar.git
+git remote add origin https://github.com/rootabhi1/OSINT-OUTAGE-RADAR.git
 git push -u origin main
 ```
 
-Replace `<your-username>` (and the repo name, if you named it differently).
+If the remote already has commits (e.g. you pushed some files already),
+use `git push -u origin main --force` only if you're sure you want to
+overwrite it — otherwise `git pull --rebase origin main` first.
 
 ---
 
 ## 3. Turn on GitHub Pages (dummy data, live in ~2 minutes)
 
-The workflow at `.github/workflows/deploy-pages.yml` is already in the repo —
-it builds a static version (client-side sample data, no API keys involved)
-and deploys it on every push to `main`. You just need to flip one setting:
+The workflow at `.github/workflows/deploy-pages.yml` builds a static version
+(client-side sample data, no API keys involved) and deploys it on every push
+to `main`.
+
+> **If you used the browser pusher tool to push files:** double check
+> `.github/workflows/deploy-pages.yml` actually made it into the repo — [see
+> it here](https://github.com/rootabhi1/OSINT-OUTAGE-RADAR/tree/main/.github/workflows).
+> Pushing files under `.github/workflows/` needs a token with a **separate**
+> "Workflows: Read and write" permission, not just "Contents" — GitHub
+> silently rejects just that one file if it's missing, while everything else
+> goes through fine. If it's missing, add it via **Add file → Create new
+> file** in the GitHub web UI (paste the workflow YAML in) — that doesn't
+> need any special token permission since it's your logged-in browser
+> session.
 
 1. On GitHub, go to your repo → **Settings** → **Pages**
 2. Under **Build and deployment** → **Source**, choose **GitHub Actions**
 3. Go to the **Actions** tab — you should see "Deploy demo to GitHub Pages"
-   already running (triggered by your push in step 2)
+   run automatically once the workflow file is in place
 4. When it finishes (green check), go back to **Settings → Pages** — your
    live URL will be shown at the top:
-   `https://<your-username>.github.io/infra-outage-radar/`
+   `https://rootabhi1.github.io/OSINT-OUTAGE-RADAR/`
 
 Every future push to `main` redeploys it automatically. This version always
 shows the bundled sample data — it has no server to call Cloudflare from.
@@ -99,7 +102,7 @@ calls Cloudflare and your API token stays server-side and secret.
 
 1. Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**
 2. Connect your GitHub account if you haven't, then select your
-   `infra-outage-radar` repo
+   `OSINT-OUTAGE-RADAR` repo
 3. Render reads `render.yaml` (already in the repo) and proposes a **Web
    Service** — review it, click **Apply**
 4. It will pause and ask you to fill in `CLOUDFLARE_API_TOKEN` (marked
@@ -122,7 +125,7 @@ calls Cloudflare and your API token stays server-side and secret.
 5. **Create Web Service** — Render builds and deploys automatically
 
 Once live, Render gives you a URL like
-`https://infra-outage-radar.onrender.com` — that's your real, live dashboard.
+`https://osint-outage-radar.onrender.com` — that's your real, live dashboard.
 Every push to `main` auto-redeploys it too.
 
 > **Free tier note:** Render's free web services spin down after inactivity
