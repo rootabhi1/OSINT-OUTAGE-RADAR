@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: infra-outage-radar
+    name: osint-outage-radar
     runtime: node
     plan: free
     branch: main
