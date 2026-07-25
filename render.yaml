@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: infra-outage-radar
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- -p $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
