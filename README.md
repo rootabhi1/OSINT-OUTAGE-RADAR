@@ -1,25 +1,27 @@
-# Signal Loss — Critical Infrastructure Outage Radar
+# Signal Loss
 
-A live dashboard tracking internet outages, BGP hijacks/route leaks, DDoS
-attack origins, and lets you investigate any URL directly — powered by the
-free [Cloudflare Radar API](https://developers.cloudflare.com/radar/) and
-[URL Scanner API](https://developers.cloudflare.com/radar/investigate/url-scanner/).
-A rotating 3D globe (satellite imagery, real zoom/search) shows where each
-event is; every entry is translated into a plain-language sentence — not raw
-API jargon — plus a confidence badge (Cloudflare-confirmed vs.
-automatically-detected).
+**Global internet outage, routing security, and threat intelligence dashboard**, built on the [Cloudflare Radar](https://developers.cloudflare.com/radar/) and [URL Scanner](https://developers.cloudflare.com/radar/investigate/url-scanner/) APIs.
 
-**Three tabs:**
-- **Outages** — confirmed outages + traffic anomalies by country
-- **Threats** — BGP hijacks, route leaks, and top DDoS attack origin countries
-- **Investigate** — paste any URL, get a security verdict, screenshot, and hosting details
+A rotating 3D globe (satellite imagery, live zoom/search) shows where each event is happening. Every entry is translated into a plain-language summary rather than raw API fields, alongside a confidence indicator (Cloudflare-confirmed vs. automatically detected).
 
-Live: `https://osint-outage-radar.onrender.com`
-Repo: `https://github.com/rootabhi1/OSINT-OUTAGE-RADAR`
+**Live app:** https://osint-outage-radar.onrender.com
 
----
+## Features
 
-## Run it locally
+**Outages** — Confirmed internet outages and traffic anomalies by country, with severity, duration, and affected scope.
+
+**Threats** — BGP hijacks, route leaks, and the top originating countries for network-layer and application-layer DDoS attacks in the last 24 hours.
+
+**Investigate** — Submit any URL for an isolated-browser scan: security verdict, live screenshot, detected technologies, and hosting/network details.
+
+## Tech stack
+
+- Next.js 16 (App Router), TypeScript, Tailwind CSS
+- MapLibre GL for the 3D globe (Esri satellite imagery / CARTO dark basemap)
+- Cloudflare Radar API and URL Scanner API for all live data
+- Deployed on Render; a static demo build (sample data only) deploys to GitHub Pages via GitHub Actions
+
+## Getting started
 
 ```bash
 npm install
@@ -27,112 +29,64 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). No credentials yet?
-Outages/Threats run on sample data with a banner saying so, and Investigate
-shows a clear "not configured" message — expected, not broken.
+Open [http://localhost:3000](http://localhost:3000). Without credentials configured, Outages and Threats display sample data with a banner indicating this, and Investigate shows a configuration notice — this is expected default behavior.
 
-**To see real data**, set two things in `.env.local` (full steps in the file
-itself):
+### Configuration
 
-1. `CLOUDFLARE_API_TOKEN` — a token with `Account → Radar → Read` (Outages,
-   Threats tabs) **and** `Account → URL Scanner → Edit` (Investigate tab) —
-   either on the same token or two separate ones
-2. `CLOUDFLARE_ACCOUNT_ID` — only needed for the Investigate tab, since URL
-   Scanner is account-scoped rather than a global read like Radar
+Two Cloudflare credentials are required for live data (see `.env.local.example` for exact steps):
 
----
-
-## Pushing changes to GitHub
-
-Use `github-pusher.html` — open it in a browser, it pushes every project
-file straight to `api.github.com` using a token you paste in. Nothing goes
-through any third party; view source if you want to confirm.
-
-**Token permissions, exactly:**
-
-| Setting | Value |
-|---|---|
-| Repository access | Only select repositories → `OSINT-OUTAGE-RADAR` |
-| Contents | Read and write |
-| Workflows | Read and write |
-| Everything else | No access |
-| Expiration | Shortest available — revoke right after use |
-
-Both **Contents** and **Workflows** are required — GitHub treats
-`.github/workflows/*.yml` as a separate permission from regular files and
-silently drops just that one file if only Contents is granted.
-
-(Prefer plain git? `git init && git add . && git commit -m "..." && git push`
-works too — same permissions apply if you're pushing workflow files.)
-
----
-
-## Deploying
-
-Two targets, same code:
-
-| Target | Shows | Setup |
+| Variable | Used for | Required permission |
 |---|---|---|
-| **GitHub Pages** | Static demo, sample data only | Repo → **Settings → Pages** → Source: **GitHub Actions**. Already wired via `.github/workflows/deploy-pages.yml` — deploys on every push to `main`. |
-| **Render** | The real app, live Cloudflare data | [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint** → select the repo → Render reads `render.yaml` → paste `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` when prompted → **Deploy**. |
+| `CLOUDFLARE_API_TOKEN` | Outages, Threats, Investigate | `Account → Radar → Read` and `Account → URL Scanner → Edit` |
+| `CLOUDFLARE_ACCOUNT_ID` | Investigate only | — (URL Scanner is account-scoped) |
 
-Render's free tier spins down after inactivity (~30–50s cold start on the
-next visit) — normal, not a bug.
+## Deployment
 
----
+| Target | Behavior | Setup |
+|---|---|---|
+| **GitHub Pages** | Static build, sample data only | Repo → Settings → Pages → Source: **GitHub Actions**. Deploys automatically on every push to `main` via `.github/workflows/deploy-pages.yml`. |
+| **Render** | Full application with live data | New → Blueprint → select this repo → Render reads `render.yaml` → provide `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` when prompted. |
+
+Render's free tier spins down after inactivity; the first request after idle takes 30–50 seconds to wake up.
 
 ## Data sources
 
-Outages tab:
-- `GET /radar/annotations/outages` — confirmed, human-verified outages
-- `GET /radar/traffic_anomalies` — automatically detected anomalies that
-  *may* indicate an outage, not yet confirmed
+| Tab | Endpoint | Notes |
+|---|---|---|
+| Outages | `GET /radar/annotations/outages` | Confirmed, human-verified outages |
+| Outages | `GET /radar/traffic_anomalies` | Automatically detected, not human-confirmed |
+| Threats | `GET /radar/bgp/hijacks/events` | Possible BGP origin hijacks |
+| Threats | `GET /radar/bgp/leaks/events` | BGP route leaks |
+| Threats | `GET /radar/attacks/layer3/top/locations/origin` | Top network-layer (DDoS) attack origins |
+| Threats | `GET /radar/attacks/layer7/top/locations/origin` | Top web-application attack origins |
+| Investigate | `POST/GET /accounts/{id}/urlscanner/v2/...` | Submits and retrieves an isolated-browser URL scan |
 
-Threats tab:
-- `GET /radar/bgp/hijacks/events` — possible BGP origin hijacks
-- `GET /radar/bgp/leaks/events` — BGP route leaks
-- `GET /radar/attacks/layer3/top/locations/origin` — top DDoS attack origin countries
-- `GET /radar/attacks/layer7/top/locations/origin` — top web-application attack origin countries
-
-Investigate tab:
-- `POST /accounts/{id}/urlscanner/v2/scan` + `GET .../result/{uuid}` — submits
-  a URL to Cloudflare's isolated browser and returns a security verdict,
-  hosting details, and a screenshot
-
-Radar endpoints are free, rate-limited, under Cloudflare's `CC BY-NC 4.0` —
-fine for personal/internal dashboards, not for resale. URL Scanner has its
-own [usage limits](https://developers.cloudflare.com/security-center/investigate/scan-limits/);
-scans are submitted as **unlisted** (not publicly searchable) by default.
+Radar data is provided under Cloudflare's `CC BY-NC 4.0` license — suitable for personal and internal use, not for resale. URL Scanner has its own [usage limits](https://developers.cloudflare.com/security-center/investigate/scan-limits/); scans submitted by this app are marked **unlisted** (not publicly searchable) by default.
 
 ## Project structure
 
 ```
-src/app/page.tsx                main dashboard UI (mode switching)
-src/app/api/outages/route.ts    outages + anomalies fetch/normalize (Render only)
-src/app/api/threats/route.ts    BGP hijacks/leaks + attack hotspots fetch/normalize
-src/app/api/scan/route.ts       URL Scanner submit (POST) + poll (GET)
-src/app/api/scan/screenshot/    proxies the scan screenshot (keeps the token server-side)
-src/lib/demo-data.ts            shared sample data (API routes + GH Pages fallback)
-src/lib/interpret.ts            raw API fields → plain-language sentences
-src/lib/country-centroids.json  ISO country code → lat/lng lookup
-src/components/GlobeMap.tsx     shared globe/search/basemap toggle, used by both map views
-src/components/                 TopBar, ModeTabs, OutageMap/List/DetailPanel,
-                                 ThreatMap/List/DetailPanel, InvestigatePanel, SignalTrace
-scripts/build-pages.sh          static export build for GitHub Pages
-.github/workflows/              GitHub Pages auto-deploy
-render.yaml                     Render blueprint
+src/app/page.tsx                 Main dashboard UI and tab switching
+src/app/api/outages/route.ts     Outages + anomalies fetch/normalize
+src/app/api/threats/route.ts     BGP hijacks/leaks + attack hotspots fetch/normalize
+src/app/api/scan/route.ts        URL Scanner submit + poll
+src/app/api/scan/screenshot/     Screenshot proxy (keeps the API token server-side)
+src/lib/demo-data.ts             Sample data (used when no credentials are configured)
+src/lib/interpret.ts             Raw API fields → plain-language summaries
+src/lib/country-centroids.json   ISO country code → coordinate lookup
+src/components/GlobeMap.tsx      Shared globe, search, and basemap toggle
+src/components/                 TopBar, ModeTabs, Outage*/Threat* views, InvestigatePanel
+scripts/build-pages.sh           Static export build used for GitHub Pages
+.github/workflows/               GitHub Pages deployment workflow
+render.yaml                      Render deployment blueprint
 ```
-
-`github-pusher.html` (provided separately, alongside this README) is a
-standalone local tool for pushing this project to GitHub — don't commit it to
-the repo itself, since it embeds a full copy of every project file and would
-grow stale/duplicated on every change.
 
 ## Extending
 
-- More Radar endpoints (e.g. `/radar/attacks/layer3` for DDoS) → add to
-  `src/app/api/outages/route.ts`, merge into the same `NormalizedOutage[]` shape
-- `src/components/SignalTrace.tsx` — the waveform visual; tweak noise/colors
-  or wire up a real sparkline from Radar's anomaly timeseries
-- `src/lib/interpret.ts` — the plain-language translations; extend if you add
-  new event types or scopes
+- Additional Radar datasets (e.g. DNS anomalies, internet quality) can be added following the pattern in `src/app/api/threats/route.ts`
+- `src/lib/interpret.ts` holds the plain-language translation logic — extend this when adding new event types
+- `src/components/SignalTrace.tsx` renders the waveform visualization on outage cards
+
+## License
+
+Application code is provided as-is. Cloudflare Radar and URL Scanner data usage is subject to [Cloudflare's terms](https://developers.cloudflare.com/radar/).
