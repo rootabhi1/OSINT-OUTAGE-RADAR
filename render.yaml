@@ -11,3 +11,5 @@ services:
         value: 20
       - key: CLOUDFLARE_API_TOKEN
         sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
