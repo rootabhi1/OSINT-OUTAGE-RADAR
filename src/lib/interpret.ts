@@ -1,4 +1,4 @@
-import type { NormalizedOutage } from "./types";
+import type { NormalizedOutage, ThreatEvent } from "./types";
 
 /**
  * Cloudflare Radar's raw fields (scope: "NATIONAL", source: "anomaly", etc.)
@@ -64,4 +64,33 @@ export function impactLine(outage: NormalizedOutage): string {
   return ongoing
     ? `An outage is ongoing in ${place}; exact reach is unclear from available data.`
     : `An outage occurred in ${place} and has since resolved; exact reach was unclear from available data.`;
+}
+
+export function threatConfidenceLabel(t: ThreatEvent): { label: string; tone: "confirmed" | "unconfirmed" } {
+  if (t.kind === "bgp_hijack") {
+    const c = t.confidence ?? 0;
+    if (c >= 8) return { label: "High confidence — likely a real hijack", tone: "confirmed" };
+    if (c >= 4) return { label: "Medium confidence — worth watching", tone: "unconfirmed" };
+    return { label: "Low confidence — often a false alarm", tone: "unconfirmed" };
+  }
+  if (t.kind === "bgp_leak") {
+    return { label: "Automatically detected route leak", tone: "unconfirmed" };
+  }
+  return { label: "Aggregated attack traffic share, not a discrete event", tone: "unconfirmed" };
+}
+
+export function threatImpactLine(t: ThreatEvent): string {
+  const place = t.location?.name ?? "an unspecified location";
+  switch (t.kind) {
+    case "bgp_hijack":
+      return `Internet traffic meant for one network may have been briefly rerouted through a network in ${place} — which can mean anything from a misconfiguration to interception.`;
+    case "bgp_leak":
+      return `A network in ${place} accidentally re-broadcast routes it shouldn't have, which can cause temporary slowdowns or instability for traffic passing through it.`;
+    case "attack_l3":
+      return `${place} was a top source of network-level DDoS attack traffic in the last 24 hours (${t.shareValue}% of the global total).`;
+    case "attack_l7":
+      return `${place} was a top source of web-application attack traffic in the last 24 hours (${t.shareValue}% of the global total).`;
+    default:
+      return t.description;
+  }
 }
