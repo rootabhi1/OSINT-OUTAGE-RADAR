@@ -2,99 +2,169 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { TopBar } from "@/components/TopBar";
+import { ModeTabs, type Mode } from "@/components/ModeTabs";
 import { OutageList } from "@/components/OutageList";
 import { OutageMap } from "@/components/OutageMap";
 import { DetailPanel } from "@/components/DetailPanel";
-import type { NormalizedOutage, OutagesResponse } from "@/lib/types";
-import { getDemoResponse } from "@/lib/demo-data";
+import { ThreatList } from "@/components/ThreatList";
+import { ThreatMap } from "@/components/ThreatMap";
+import { ThreatDetailPanel } from "@/components/ThreatDetailPanel";
+import { InvestigatePanel } from "@/components/InvestigatePanel";
+import type { NormalizedOutage, OutagesResponse, ThreatEvent, ThreatsResponse } from "@/lib/types";
+import { getDemoResponse, getDemoThreatsResponse } from "@/lib/demo-data";
 import { AlertCircle } from "lucide-react";
 
 const POLL_INTERVAL_MS = 60_000;
 
 export default function Home() {
-  const [data, setData] = useState<OutagesResponse | null>(null);
-  const [selected, setSelected] = useState<NormalizedOutage | null>(null);
-  const [filter, setFilter] = useState<"all" | "ongoing" | "resolved">("all");
-  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<Mode>("outages");
 
-  const fetchData = useCallback(async () => {
+  const [outageData, setOutageData] = useState<OutagesResponse | null>(null);
+  const [selectedOutage, setSelectedOutage] = useState<NormalizedOutage | null>(null);
+  const [filter, setFilter] = useState<"all" | "ongoing" | "resolved">("all");
+  const [outagesLoading, setOutagesLoading] = useState(true);
+
+  const [threatData, setThreatData] = useState<ThreatsResponse | null>(null);
+  const [selectedThreat, setSelectedThreat] = useState<ThreatEvent | null>(null);
+  const [threatsLoading, setThreatsLoading] = useState(true);
+
+  const fetchOutages = useCallback(async () => {
     try {
       const res = await fetch("/api/outages");
       if (!res.ok) throw new Error(`status ${res.status}`);
       const json: OutagesResponse = await res.json();
-      setData(json);
+      setOutageData(json);
     } catch {
-      // No API route to hit at all — this is expected on a static export
-      // (e.g. GitHub Pages), which has no server to run /api/outages on.
-      // Fall back to the same bundled sample data the API route would have
-      // returned, so the static demo still looks fully populated.
-      setData((prev) =>
+      setOutageData((prev) =>
         prev ?? getDemoResponse("Static preview build — connect a live deployment for real-time data.")
       );
     } finally {
-      setLoading(false);
+      setOutagesLoading(false);
+    }
+  }, []);
+
+  const fetchThreats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/threats");
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const json: ThreatsResponse = await res.json();
+      setThreatData(json);
+    } catch {
+      setThreatData((prev) =>
+        prev ?? getDemoThreatsResponse("Static preview build — connect a live deployment for real-time data.")
+      );
+    } finally {
+      setThreatsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [fetchData]);
+    fetchOutages();
+    fetchThreats();
+    const id1 = setInterval(fetchOutages, POLL_INTERVAL_MS);
+    const id2 = setInterval(fetchThreats, POLL_INTERVAL_MS);
+    return () => {
+      clearInterval(id1);
+      clearInterval(id2);
+    };
+  }, [fetchOutages, fetchThreats]);
 
-  const outages = data?.outages ?? [];
+  const outages = outageData?.outages ?? [];
+  const threats = threatData?.threats ?? [];
+
+  const banner =
+    mode === "threats"
+      ? threatData?.demo && threatData.error
+      : mode === "outages"
+        ? outageData?.demo && outageData.error
+        : null;
 
   return (
     <main className="flex h-screen w-screen flex-col overflow-hidden bg-[#0A0D12] text-[#E7E9EC]">
       <TopBar
-        total={outages.length}
-        ongoing={data?.ongoingCount ?? 0}
-        demo={!!data?.demo}
-        lastUpdated={data?.fetchedAt ?? null}
+        total={mode === "threats" ? threats.length : outages.length}
+        ongoing={mode === "threats" ? threats.length : (outageData?.ongoingCount ?? 0)}
+        demo={mode === "threats" ? !!threatData?.demo : !!outageData?.demo}
+        lastUpdated={mode === "threats" ? (threatData?.fetchedAt ?? null) : (outageData?.fetchedAt ?? null)}
       />
+      <ModeTabs mode={mode} onChange={setMode} />
 
-      {data?.demo && data.error && (
+      {banner && (
         <div className="flex items-center gap-2 border-b border-[#FFB020]/20 bg-[#FFB020]/5 px-4 py-1.5 font-mono text-[10.5px] text-[#FFB020]">
           <AlertCircle size={12} />
-          {data.error}
+          {mode === "threats" ? threatData?.error : outageData?.error}
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="hidden sm:block sm:h-full">
-          <OutageList
-            outages={outages}
-            selectedId={selected?.id ?? null}
-            onSelect={setSelected}
-            filter={filter}
-            onFilterChange={setFilter}
-          />
+      {mode === "outages" && (
+        <div className="flex flex-1 overflow-hidden">
+          <div className="hidden sm:block sm:h-full">
+            <OutageList
+              outages={outages}
+              selectedId={selectedOutage?.id ?? null}
+              onSelect={setSelectedOutage}
+              filter={filter}
+              onFilterChange={setFilter}
+            />
+          </div>
+          <div className="relative flex-1">
+            {outagesLoading && !outageData && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
+                <p className="animate-pulse font-mono text-[11px] tracking-widest text-[#5B6572]">
+                  ESTABLISHING FEED…
+                </p>
+              </div>
+            )}
+            <OutageMap outages={outages} selectedId={selectedOutage?.id ?? null} onSelect={setSelectedOutage} />
+          </div>
+          <DetailPanel outage={selectedOutage} onClose={() => setSelectedOutage(null)} />
+          <div className="block h-52 border-t border-[#1E2734] sm:hidden">
+            <OutageList
+              outages={outages}
+              selectedId={selectedOutage?.id ?? null}
+              onSelect={setSelectedOutage}
+              filter={filter}
+              onFilterChange={setFilter}
+            />
+          </div>
         </div>
+      )}
 
-        <div className="relative flex-1">
-          {loading && !data && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
-              <p className="animate-pulse font-mono text-[11px] tracking-widest text-[#5B6572]">
-                ESTABLISHING FEED…
-              </p>
-            </div>
-          )}
-          <OutageMap outages={outages} selectedId={selected?.id ?? null} onSelect={setSelected} />
+      {mode === "threats" && (
+        <div className="flex flex-1 overflow-hidden">
+          <div className="hidden sm:block sm:h-full">
+            <ThreatList
+              threats={threats}
+              selectedId={selectedThreat?.id ?? null}
+              onSelect={setSelectedThreat}
+            />
+          </div>
+          <div className="relative flex-1">
+            {threatsLoading && !threatData && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
+                <p className="animate-pulse font-mono text-[11px] tracking-widest text-[#5B6572]">
+                  ESTABLISHING FEED…
+                </p>
+              </div>
+            )}
+            <ThreatMap threats={threats} selectedId={selectedThreat?.id ?? null} onSelect={setSelectedThreat} />
+          </div>
+          <ThreatDetailPanel threat={selectedThreat} onClose={() => setSelectedThreat(null)} />
+          <div className="block h-52 border-t border-[#1E2734] sm:hidden">
+            <ThreatList
+              threats={threats}
+              selectedId={selectedThreat?.id ?? null}
+              onSelect={setSelectedThreat}
+            />
+          </div>
         </div>
+      )}
 
-        <DetailPanel outage={selected} onClose={() => setSelected(null)} />
-      </div>
-
-      {/* Mobile list — shown below map on small screens */}
-      <div className="block h-52 border-t border-[#1E2734] sm:hidden">
-        <OutageList
-          outages={outages}
-          selectedId={selected?.id ?? null}
-          onSelect={setSelected}
-          filter={filter}
-          onFilterChange={setFilter}
-        />
-      </div>
+      {mode === "investigate" && (
+        <div className="flex-1 overflow-hidden">
+          <InvestigatePanel />
+        </div>
+      )}
     </main>
   );
 }
