@@ -2,7 +2,8 @@
 
 import type { NormalizedOutage } from "@/lib/types";
 import { SignalTrace } from "./SignalTrace";
-import { X, MapPin, Server, Clock, ExternalLink, ShieldAlert } from "lucide-react";
+import { scopeLabel, confidenceLabel, impactLine } from "@/lib/interpret";
+import { X, MapPin, Server, Clock, ExternalLink, ShieldAlert, CircleHelp, CircleCheck } from "lucide-react";
 
 const SEVERITY_LABEL: Record<string, string> = {
   critical: "Critical outage",
@@ -71,14 +72,42 @@ export function DetailPanel({
         </div>
 
         <p className="mt-1 font-mono text-[10px] uppercase tracking-wide text-[#5B6572]">
-          {outage.eventType.replaceAll("_", " ")} · {outage.scope.replaceAll("_", " ")}
+          Technical: {outage.eventType.replaceAll("_", " ")} · {outage.scope.replaceAll("_", " ")}
         </p>
+
+        {/* Plain-language translation — this is the part meant to actually
+            answer "what does this mean for someone in that place," rather
+            than restating Cloudflare's raw category fields. */}
+        <div className="mt-3 rounded-sm border border-[#1E2734] bg-[#0F141C] p-3">
+          <p className="font-sans text-[13px] leading-relaxed text-[#E7E9EC]">
+            {impactLine(outage)}
+          </p>
+          <p className="mt-2 font-mono text-[10px] text-[#5B6572]">{scopeLabel(outage.scope)}</p>
+        </div>
+
+        <div className="mt-2 flex items-center gap-1.5">
+          {confidenceLabel(outage).tone === "confirmed" ? (
+            <CircleCheck size={12} className="text-[#43D9C8]" />
+          ) : (
+            <CircleHelp size={12} className="text-[#FFB020]" />
+          )}
+          <span
+            className={`font-mono text-[10px] ${
+              confidenceLabel(outage).tone === "confirmed" ? "text-[#43D9C8]" : "text-[#FFB020]"
+            }`}
+          >
+            {confidenceLabel(outage).label}
+          </span>
+        </div>
 
         <div className="mt-4 rounded-sm border border-[#1E2734] bg-[#0F141C] p-3">
           <SignalTrace severity={outage.severity} resolved={!live} width={260} height={48} />
         </div>
 
-        <p className="mt-4 font-sans text-[12.5px] leading-relaxed text-[#C4CAD2]">
+        <p className="mt-4 font-mono text-[10px] uppercase tracking-wide text-[#5B6572]">
+          Cloudflare's description
+        </p>
+        <p className="mt-1 font-sans text-[12px] leading-relaxed text-[#8A93A0]">
           {outage.description}
         </p>
 
