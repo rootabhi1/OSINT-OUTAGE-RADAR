@@ -4,7 +4,7 @@
 
 A rotating 3D globe (satellite imagery, live zoom/search) shows where each event is happening. Every entry is translated into a plain-language summary rather than raw API fields, alongside a confidence indicator (Cloudflare-confirmed vs. automatically detected).
 
-**Live app:** **[https://osint-outage-radar.onrender.com](https://rootabhi1.github.io/OSINT-OUTAGE-RADAR/)**
+**Live Demo:**  https://rootabhi1.github.io/OSINT-OUTAGE-RADAR/
 
 ## Features
 
