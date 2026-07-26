@@ -2,6 +2,7 @@
 
 import type { NormalizedOutage } from "@/lib/types";
 import { SignalTrace } from "./SignalTrace";
+import { impactLine } from "@/lib/interpret";
 import { AlertTriangle, Activity, Radio } from "lucide-react";
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -95,8 +96,8 @@ export function OutageList({
                 </span>
               </div>
 
-              <p className="mt-1 line-clamp-2 font-mono text-[10.5px] leading-relaxed text-[#8A93A0]">
-                {o.description}
+              <p className="mt-1 line-clamp-2 font-sans text-[11px] leading-relaxed text-[#C4CAD2]">
+                {impactLine(o)}
               </p>
 
               <div className="mt-2 flex items-center justify-between">
