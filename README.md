@@ -4,7 +4,7 @@
 
 A rotating 3D globe (satellite imagery, live zoom/search) shows where each event is happening. Every entry is translated into a plain-language summary rather than raw API fields, alongside a confidence indicator (Cloudflare-confirmed vs. automatically detected).
 
-**Live Demo:**  https://rootabhi1.github.io/OSINT-OUTAGE-RADAR/
+**Live app:** https://osint-outage-radar.onrender.com
 
 ## Features
 
@@ -17,7 +17,7 @@ A rotating 3D globe (satellite imagery, live zoom/search) shows where each event
 ## Tech stack
 
 - Next.js 16 (App Router), TypeScript, Tailwind CSS
-- MapLibre GL for the 3D globe (Esri satellite imagery / CARTO dark basemap)
+- MapLibre GL (used directly, not through a React wrapper) for the 3D globe (Esri satellite imagery / CARTO dark vector basemap)
 - Cloudflare Radar API and URL Scanner API for all live data
 - Deployed on Render; a static demo build (sample data only) deploys to GitHub Pages via GitHub Actions
 
