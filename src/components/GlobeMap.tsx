@@ -117,6 +117,12 @@ export function GlobeMap({
         type: "raster",
         tiles: SATELLITE_TILES,
         tileSize: 256,
+        // Esri's free imagery mosaic doesn't have full coverage at the
+        // very lowest zoom levels in every region ("Map data not yet
+        // available" placeholder tiles) — staying above zoom 2 avoids the
+        // zoom range where that's most common. See:
+        // community.esri.com/t5/arcgis-online-questions/map-data-not-yet-available/td-p/1065960
+        minzoom: 2,
         attribution: "Esri, Maxar, Earthstar Geographics, and the GIS User Community",
       });
       map.addLayer({
@@ -124,6 +130,26 @@ export function GlobeMap({
         type: "raster",
         source: "satellite-tiles",
         paint: { "raster-opacity": 1 },
+        layout: { visibility: "visible" },
+      });
+
+      // Place-name / country-border overlay so satellite view isn't just
+      // bare imagery with no labels — this was present in an earlier
+      // version and got dropped in the rewrite to raw maplibregl.
+      map.addSource("satellite-labels", {
+        type: "raster",
+        tiles: [
+          "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+        ],
+        tileSize: 256,
+        minzoom: 2,
+        attribution: "Esri",
+      });
+      map.addLayer({
+        id: "satellite-labels-layer",
+        type: "raster",
+        source: "satellite-labels",
+        paint: { "raster-opacity": 0.9 },
         layout: { visibility: "visible" },
       });
 
@@ -138,16 +164,18 @@ export function GlobeMap({
     };
   }, []);
 
-  // Toggle satellite layer visibility (cheap — no full style reload/flicker).
+  // Toggle satellite (+ its label overlay) visibility — cheap, no full
+  // style reload/flicker.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    if (!map.getLayer("satellite-layer")) return;
-    map.setLayoutProperty(
-      "satellite-layer",
-      "visibility",
-      basemap === "satellite" ? "visible" : "none"
-    );
+    const visibility = basemap === "satellite" ? "visible" : "none";
+    if (map.getLayer("satellite-layer")) {
+      map.setLayoutProperty("satellite-layer", "visibility", visibility);
+    }
+    if (map.getLayer("satellite-labels-layer")) {
+      map.setLayoutProperty("satellite-labels-layer", "visibility", visibility);
+    }
   }, [basemap, mapReady]);
 
   // Sync markers imperatively.
