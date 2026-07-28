@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import Map, { Marker, NavigationControl, type MapRef } from "react-map-gl/maplibre";
+import { useEffect, useMemo, useRef, useState } from "react";
+import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import centroids from "@/lib/country-centroids.json";
 import { Search, X, Satellite, Moon } from "lucide-react";
@@ -15,71 +15,21 @@ const COUNTRY_ENTRIES = Object.entries(CENTROIDS).map(([code, [lat, lng, name]])
   lng,
 }));
 
-const GLOBE_PROJECTION = { type: "globe" as const };
-const SKY = {
-  "sky-color": "#05070A",
-  "sky-horizon-blend": 0.6,
-  "horizon-color": "#0F1620",
-  "horizon-fog-blend": 0.6,
-  "fog-color": "#0A0D12",
-  "fog-ground-blend": 0.7,
-  "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 0.85, 5, 0.3, 10, 0],
-};
+// CARTO's actual vector basemap (not raster tiles) — crisper at all zoom
+// levels and what OSIRIS itself uses as its base style.
+const DARK_STYLE_URL = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
-const SATELLITE_STYLE = {
-  version: 8 as const,
-  sources: {
-    "esri-imagery": {
-      type: "raster" as const,
-      tiles: [
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      ],
-      tileSize: 256,
-      attribution: "Esri, Maxar, Earthstar Geographics, and the GIS User Community",
-    },
-    "esri-boundaries": {
-      type: "raster" as const,
-      tiles: [
-        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
-      ],
-      tileSize: 256,
-      attribution: "Esri",
-    },
-  },
-  projection: GLOBE_PROJECTION,
-  sky: SKY,
-  layers: [
-    { id: "background", type: "background" as const, paint: { "background-color": "#05070A" } },
-    { id: "esri-imagery-layer", type: "raster" as const, source: "esri-imagery" },
-    {
-      id: "esri-boundaries-layer",
-      type: "raster" as const,
-      source: "esri-boundaries",
-      paint: { "raster-opacity": 0.85 },
-    },
-  ],
-};
+const SATELLITE_TILES = [
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+];
 
-const DARK_STYLE = {
-  version: 8 as const,
-  sources: {
-    "carto-dark": {
-      type: "raster" as const,
-      tiles: [
-        "https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png",
-      ],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO",
-    },
-  },
-  projection: GLOBE_PROJECTION,
-  sky: SKY,
-  layers: [
-    { id: "background", type: "background" as const, paint: { "background-color": "#05070A" } },
-    { id: "carto-dark-layer", type: "raster" as const, source: "carto-dark" },
-  ],
+const SKY_CONFIG = {
+  "sky-color": "#04040A",
+  "sky-horizon-blend": 0.5,
+  "horizon-color": "#0a0a1a",
+  "horizon-fog-blend": 0.3,
+  "fog-color": "#04040A",
+  "fog-ground-blend": 0.9,
 };
 
 export interface GlobeMarker {
@@ -89,6 +39,31 @@ export interface GlobeMarker {
   color: string;
   pulsing?: boolean;
   selected?: boolean;
+}
+
+function createMarkerElement(m: GlobeMarker): HTMLDivElement {
+  const el = document.createElement("div");
+  const size = m.selected ? 14 : 10;
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.style.borderRadius = "50%";
+  el.style.backgroundColor = m.color;
+  el.style.border = "2px solid #05070A";
+  el.style.boxShadow = `0 0 6px ${m.color}`;
+  el.style.cursor = "pointer";
+
+  if (m.pulsing) {
+    const ping = document.createElement("span");
+    ping.style.position = "absolute";
+    ping.style.inset = "-6px";
+    ping.style.borderRadius = "50%";
+    ping.style.backgroundColor = m.color;
+    ping.style.opacity = "0.4";
+    ping.style.animation = "globe-marker-ping 1.6s cubic-bezier(0,0,0.2,1) infinite";
+    el.style.position = "relative";
+    el.appendChild(ping);
+  }
+  return el;
 }
 
 export function GlobeMap({
@@ -104,10 +79,105 @@ export function GlobeMap({
   onSelectCountry: (code: string, lat: number, lng: number) => void;
   legend: { color: string; label: string }[];
 }) {
-  const mapRef = useRef<MapRef>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerObjsRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const [mapReady, setMapReady] = useState(false);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [basemap, setBasemap] = useState<"satellite" | "dark">("satellite");
+
+  // Create the map once.
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: DARK_STYLE_URL,
+      center: [15, 20],
+      zoom: 1.2,
+      minZoom: 1,
+      maxZoom: 19,
+      maxPitch: 60,
+    });
+    mapRef.current = map;
+
+    map.on("load", () => {
+      // Globe projection + atmosphere, set imperatively — embedding these
+      // in the style JSON instead (as a prior version of this component
+      // did) is what caused flyTo/pan to crash on this map engine version.
+      try {
+        (map as any).setProjection({ type: "globe" });
+        (map as any).setSky?.(SKY_CONFIG);
+      } catch {
+        // Non-fatal: globe/sky are visual enhancements, map still works flat.
+      }
+
+      map.addSource("satellite-tiles", {
+        type: "raster",
+        tiles: SATELLITE_TILES,
+        tileSize: 256,
+        attribution: "Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+      });
+      map.addLayer({
+        id: "satellite-layer",
+        type: "raster",
+        source: "satellite-tiles",
+        paint: { "raster-opacity": 1 },
+        layout: { visibility: "visible" },
+      });
+
+      map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
+      setMapReady(true);
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      setMapReady(false);
+    };
+  }, []);
+
+  // Toggle satellite layer visibility (cheap — no full style reload/flicker).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!map.getLayer("satellite-layer")) return;
+    map.setLayoutProperty(
+      "satellite-layer",
+      "visibility",
+      basemap === "satellite" ? "visible" : "none"
+    );
+  }, [basemap, mapReady]);
+
+  // Sync markers imperatively.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    const existing = markerObjsRef.current;
+    const nextIds = new Set(markers.map((m) => m.id));
+
+    for (const [id, markerObj] of existing) {
+      if (!nextIds.has(id)) {
+        markerObj.remove();
+        existing.delete(id);
+      }
+    }
+
+    for (const m of markers) {
+      const el = createMarkerElement(m);
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onSelectMarker(m.id);
+      });
+      existing.get(m.id)?.remove();
+      const markerObj = new maplibregl.Marker({ element: el, anchor: "center" })
+        .setLngLat([m.longitude, m.latitude])
+        .addTo(map);
+      existing.set(m.id, markerObj);
+    }
+  }, [markers, mapReady, onSelectMarker]);
 
   const results = useMemo(() => {
     if (!query.trim()) return [];
@@ -124,50 +194,12 @@ export function GlobeMap({
 
   return (
     <div className="relative h-full w-full">
-      <Map
-        ref={mapRef}
-        initialViewState={{ longitude: 15, latitude: 20, zoom: 1.2 }}
-        minZoom={0}
-        maxZoom={12}
-        mapStyle={(basemap === "satellite" ? SATELLITE_STYLE : DARK_STYLE) as any}
-        style={{ width: "100%", height: "100%" }}
-        scrollZoom
-        doubleClickZoom
-        touchZoomRotate
-        dragRotate
-      >
-        <NavigationControl position="top-right" showCompass visualizePitch />
-        {markers.map((m) => (
-          <Marker key={m.id} longitude={m.longitude} latitude={m.latitude} anchor="center">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectMarker(m.id);
-              }}
-              className="relative flex items-center justify-center"
-              style={{ width: m.selected ? 22 : 16, height: m.selected ? 22 : 16 }}
-              aria-label="Map event"
-            >
-              {m.pulsing && (
-                <span
-                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40"
-                  style={{ backgroundColor: m.color }}
-                />
-              )}
-              <span
-                className="relative inline-flex rounded-full border-2"
-                style={{
-                  width: m.selected ? 14 : 10,
-                  height: m.selected ? 14 : 10,
-                  backgroundColor: m.color,
-                  borderColor: "#05070A",
-                  boxShadow: `0 0 6px ${m.color}`,
-                }}
-              />
-            </button>
-          </Marker>
-        ))}
-      </Map>
+      <style>{`
+        @keyframes globe-marker-ping {
+          75%, 100% { transform: scale(2); opacity: 0; }
+        }
+      `}</style>
+      <div ref={containerRef} className="h-full w-full" />
 
       {/* Country search */}
       <div className="absolute left-3 top-3 z-10 w-64">
