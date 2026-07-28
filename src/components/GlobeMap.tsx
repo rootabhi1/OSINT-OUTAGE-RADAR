@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import centroids from "@/lib/country-centroids.json";
-import { Search, X, Satellite, Moon } from "lucide-react";
+import { Search, X, Satellite, Moon, MapPin, ExternalLink, Loader2 } from "lucide-react";
+import type { GeocodeResult } from "@/app/api/geocode/route";
 
 type Centroids = Record<string, [number, number, string]>;
 const CENTROIDS = centroids as unknown as Centroids;
@@ -31,6 +32,11 @@ const SKY_CONFIG = {
   "fog-color": "#04040A",
   "fog-ground-blend": 0.9,
 };
+
+// Matches "lat,lng" or "lat, lng" with optional decimals/negatives, e.g.
+// "40.7128,-74.0060" or "-33.87, 151.21" — lets someone paste raw
+// coordinates instead of only searching by name.
+const COORD_PATTERN = /^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
 
 export interface GlobeMarker {
   id: string;
@@ -86,6 +92,11 @@ export function GlobeMap({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [basemap, setBasemap] = useState<"satellite" | "dark">("satellite");
+  const [geocodeResults, setGeocodeResults] = useState<GeocodeResult[]>([]);
+  const [geocoding, setGeocoding] = useState(false);
+  const [lastLocation, setLastLocation] = useState<{ lat: number; lng: number; label: string } | null>(
+    null
+  );
 
   // Create the map once.
   useEffect(() => {
@@ -207,15 +218,56 @@ export function GlobeMap({
     }
   }, [markers, mapReady, onSelectMarker]);
 
-  const results = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.trim().toLowerCase();
-    return COUNTRY_ENTRIES.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 8);
+  const coordMatch = useMemo(() => {
+    const m = query.match(COORD_PATTERN);
+    if (!m) return null;
+    const lat = parseFloat(m[1]);
+    const lng = parseFloat(m[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
   }, [query]);
 
-  function goToCountry(entry: { code: string; name: string; lat: number; lng: number }) {
-    mapRef.current?.flyTo({ center: [entry.lng, entry.lat], zoom: 4, duration: 1400 });
+  const countryResults = useMemo(() => {
+    if (!query.trim() || coordMatch) return [];
+    const q = query.trim().toLowerCase();
+    return COUNTRY_ENTRIES.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 5);
+  }, [query, coordMatch]);
+
+  // Debounced address/city search via our /api/geocode proxy — only fires
+  // once typing pauses, and only for queries that aren't a country match
+  // or raw coordinates already.
+  useEffect(() => {
+    if (coordMatch || query.trim().length < 3 || countryResults.length > 0) {
+      setGeocodeResults([]);
+      return;
+    }
+    const q = query.trim();
+    setGeocoding(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+        const json = await res.json();
+        setGeocodeResults(json.results ?? []);
+      } catch {
+        setGeocodeResults([]);
+      } finally {
+        setGeocoding(false);
+      }
+    }, 450);
+    return () => {
+      clearTimeout(timer);
+      setGeocoding(false);
+    };
+  }, [query, coordMatch, countryResults.length]);
+
+  function flyToPoint(lat: number, lng: number, label: string, zoom = 6) {
+    mapRef.current?.flyTo({ center: [lng, lat], zoom, duration: 1400 });
+    setLastLocation({ lat, lng, label });
     setOpen(false);
+  }
+
+  function goToCountry(entry: { code: string; name: string; lat: number; lng: number }) {
+    flyToPoint(entry.lat, entry.lng, entry.name, 4);
     setQuery(entry.name);
     onSelectCountry(entry.code, entry.lat, entry.lng);
   }
@@ -229,10 +281,14 @@ export function GlobeMap({
       `}</style>
       <div ref={containerRef} className="h-full w-full" />
 
-      {/* Country search */}
-      <div className="absolute left-3 top-3 z-10 w-64">
+      {/* Search: country, city/address, or raw "lat,lng" coordinates */}
+      <div className="absolute left-3 top-3 z-10 w-72">
         <div className="flex items-center gap-2 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 px-2.5 py-2">
-          <Search size={13} className="shrink-0 text-[#5B6572]" />
+          {geocoding ? (
+            <Loader2 size={13} className="shrink-0 animate-spin text-[#5B6572]" />
+          ) : (
+            <Search size={13} className="shrink-0 text-[#5B6572]" />
+          )}
           <input
             value={query}
             onChange={(e) => {
@@ -240,7 +296,7 @@ export function GlobeMap({
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            placeholder="Search a country…"
+            placeholder="Country, city, address, or lat,lng…"
             className="w-full bg-transparent font-mono text-[11.5px] text-[#E7E9EC] placeholder:text-[#5B6572] outline-none"
           />
           {query && (
@@ -248,6 +304,7 @@ export function GlobeMap({
               onClick={() => {
                 setQuery("");
                 setOpen(false);
+                setGeocodeResults([]);
               }}
               className="shrink-0 text-[#5B6572] hover:text-[#E7E9EC]"
               aria-label="Clear search"
@@ -256,9 +313,24 @@ export function GlobeMap({
             </button>
           )}
         </div>
-        {open && results.length > 0 && (
-          <div className="mt-1 max-h-56 overflow-y-auto rounded-sm border border-[#1E2734] bg-[#0B0F16]/95">
-            {results.map((r) => (
+
+        {open && coordMatch && (
+          <div className="mt-1 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95">
+            <button
+              onClick={() =>
+                flyToPoint(coordMatch.lat, coordMatch.lng, `${coordMatch.lat}, ${coordMatch.lng}`, 8)
+              }
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left font-mono text-[11px] text-[#C4CAD2] hover:bg-[#10151D]"
+            >
+              <MapPin size={12} className="shrink-0 text-[#43D9C8]" />
+              Go to {coordMatch.lat.toFixed(4)}, {coordMatch.lng.toFixed(4)}
+            </button>
+          </div>
+        )}
+
+        {open && !coordMatch && (countryResults.length > 0 || geocodeResults.length > 0) && (
+          <div className="mt-1 max-h-64 overflow-y-auto rounded-sm border border-[#1E2734] bg-[#0B0F16]/95">
+            {countryResults.map((r) => (
               <button
                 key={r.code}
                 onClick={() => goToCountry(r)}
@@ -270,9 +342,36 @@ export function GlobeMap({
                 )}
               </button>
             ))}
+            {geocodeResults.map((r, i) => (
+              <button
+                key={`${r.lat}-${r.lng}-${i}`}
+                onClick={() => flyToPoint(r.lat, r.lng, r.name, 11)}
+                className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-[#10151D]"
+              >
+                <MapPin size={11} className="mt-0.5 shrink-0 text-[#5B6572]" />
+                <span className="min-w-0">
+                  <span className="block truncate font-mono text-[11px] text-[#C4CAD2]">{r.name}</span>
+                  <span className="block truncate font-mono text-[9.5px] text-[#5B6572]">
+                    {r.displayName}
+                  </span>
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </div>
+
+      {lastLocation && (
+        <a
+          href={`https://www.google.com/maps/@${lastLocation.lat},${lastLocation.lng},16z/data=!3m1!1e3`}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 px-2.5 py-1.5 font-mono text-[10px] text-[#8A93A0] hover:text-[#43D9C8]"
+        >
+          <ExternalLink size={10} />
+          {lastLocation.label} in Google Maps satellite
+        </a>
+      )}
 
       {/* Basemap toggle */}
       <div className="absolute right-3 top-14 z-10 flex flex-col overflow-hidden rounded-sm border border-[#1E2734]">
