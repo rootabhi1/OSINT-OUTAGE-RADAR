@@ -69,6 +69,7 @@ Radar data is provided under Cloudflare's `CC BY-NC 4.0` license — suitable fo
 src/app/page.tsx                 Main dashboard UI and tab switching
 src/app/api/outages/route.ts     Outages + anomalies fetch/normalize
 src/app/api/threats/route.ts     BGP hijacks/leaks + attack hotspots fetch/normalize
+src/app/api/geocode/route.ts     Address/city search proxy (OpenStreetMap Nominatim)
 src/app/api/scan/route.ts        URL Scanner submit + poll
 src/app/api/scan/screenshot/     Screenshot proxy (keeps the API token server-side)
 src/lib/demo-data.ts             Sample data (used when no credentials are configured)
