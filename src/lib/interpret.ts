@@ -1,5 +1,24 @@
 import type { NormalizedOutage, ThreatEvent } from "./types";
 
+const OUTAGE_CAUSE_LABELS: Record<string, string> = {
+  CABLE_CUT: "an undersea or terrestrial cable cut",
+  POWER_OUTAGE: "a power grid failure",
+  GOVERNMENT_DIRECTED: "a government-directed shutdown",
+  WEATHER: "severe weather or a natural disaster",
+  NATURAL_DISASTER: "a natural disaster",
+  MAINTENANCE: "scheduled network maintenance",
+  FILTERING: "network filtering or blocking",
+  BLOCKING: "network filtering or blocking",
+  TECHNICAL_PROBLEMS: "a technical/infrastructure fault",
+  MILITARY_ACTION: "military action",
+  UNKNOWN: "an unconfirmed cause",
+};
+
+export function outageCauseLabel(cause?: string): string | null {
+  if (!cause) return null;
+  return OUTAGE_CAUSE_LABELS[cause.toUpperCase()] ?? cause.toLowerCase().replaceAll("_", " ");
+}
+
 /**
  * Cloudflare Radar's raw fields (scope: "NATIONAL", source: "anomaly", etc.)
  * are precise but meaningless to someone without networking background.
@@ -7,12 +26,15 @@ import type { NormalizedOutage, ThreatEvent } from "./types";
  * actually act on or understand at a glance.
  */
 
-export function scopeLabel(scope: string): string {
-  const s = scope.toUpperCase();
-  if (s.includes("NATIONAL") || s.includes("COUNTRY")) return "Entire country affected";
-  if (s.includes("REGIONAL")) return "Part of the country affected";
-  if (s.includes("NETWORK")) return "One internet provider affected";
-  if (s.includes("LOCATION")) return "A specific area affected";
+export function scopeLabel(outage: NormalizedOutage): string {
+  if (outage.source === "anomaly") {
+    if (outage.eventType === "AS") return "One network affected";
+    if (outage.eventType === "ORIGIN") return "One origin/service affected";
+    return "One location affected";
+  }
+  const s = (outage.outageType ?? "").toUpperCase();
+  if (s.includes("NATIONWIDE") || s.includes("NATIONAL") || s.includes("COUNTRY")) return "Entire country affected";
+  if (s.includes("REGIONAL") || s.includes("LOCAL")) return "Part of the country affected";
   return "Scope unclear";
 }
 
@@ -33,32 +55,40 @@ export function confidenceLabel(outage: NormalizedOutage): {
  * A single, plain-English sentence explaining what this event actually
  * means for someone trying to understand internet access in that place —
  * distinct from the raw `description`, which is often just restating the
- * event type.
+ * event type. Uses Cloudflare's real classification fields (outageType,
+ * outageCause) rather than guessing from free-text scope.
  */
 export function impactLine(outage: NormalizedOutage): string {
   const place = outage.locations[0]?.name ?? "the affected area";
   const ongoing = !outage.endDate;
+  const cause = outageCauseLabel(outage.outageCause);
+  const causePhrase = cause ? `, attributed to ${cause}` : "";
 
   if (outage.source === "anomaly") {
+    const verified = outage.verificationStatus === "VERIFIED";
     return ongoing
-      ? `Traffic from ${place} looks abnormal right now. This alone doesn't confirm an outage — it's a signal worth watching.`
-      : `Traffic from ${place} looked abnormal for a period, then returned to normal. No outage was confirmed.`;
+      ? `Traffic from ${place} looks abnormal right now${verified ? " and Cloudflare's team has confirmed this" : ""}. ${
+          verified ? "" : "This alone doesn't confirm an outage — it's an algorithmic signal worth watching."
+        }`.trim()
+      : `Traffic from ${place} looked abnormal for a period, then returned to normal.${
+          verified ? " Cloudflare's team confirmed this as a real event." : " No outage was confirmed."
+        }`;
   }
 
-  const scope = outage.scope.toUpperCase();
-  if (scope.includes("NATIONAL") || scope.includes("COUNTRY")) {
+  const type = (outage.outageType ?? "").toUpperCase();
+  if (type.includes("NATIONWIDE") || type.includes("NATIONAL") || type.includes("COUNTRY")) {
     return ongoing
-      ? `Most people in ${place} likely can't reach the internet right now.`
-      : `Most people in ${place} were likely unable to reach the internet for a period. Access has since been restored.`;
+      ? `Most people in ${place} likely can't reach the internet right now${causePhrase}.`
+      : `Most people in ${place} were likely unable to reach the internet for a period${causePhrase}. Access has since been restored.`;
   }
-  if (scope.includes("REGIONAL")) {
+  if (type.includes("REGIONAL") || type.includes("LOCAL")) {
     return ongoing
-      ? `Internet access is likely disrupted in part of ${place} right now, not the whole country.`
-      : `Internet access was likely disrupted in part of ${place} for a period. It has since recovered.`;
+      ? `Internet access is likely disrupted in part of ${place} right now${causePhrase}, not the whole country.`
+      : `Internet access was likely disrupted in part of ${place} for a period${causePhrase}. It has since recovered.`;
   }
-  if (scope.includes("NETWORK")) {
+  if (outage.asns.length > 0) {
     return ongoing
-      ? `Customers of one specific internet provider in ${place} likely can't get online — others in the same country are probably unaffected.`
+      ? `Customers of ${outage.asns[0].name} in ${place} likely can't get online${causePhrase} — others in the same country are probably unaffected.`
       : `Customers of one specific internet provider in ${place} were likely affected for a period. Service has since recovered.`;
   }
   return ongoing
