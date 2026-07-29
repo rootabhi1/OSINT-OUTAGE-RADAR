@@ -24,6 +24,15 @@ export interface NormalizedOutage {
   locations: OutageLocation[];
   asns: OutageAsn[];
   linkedUrl: string | null;
+  /** Cloudflare's classified cause, e.g. "CABLE_CUT", "POWER_OUTAGE",
+   * "GOVERNMENT_DIRECTED" — only present for confirmed outages, not
+   * anomalies. This is the real "why," not a guess. */
+  outageCause?: string;
+  /** Cloudflare's classified extent, e.g. "NATIONWIDE", "REGIONAL". */
+  outageType?: string;
+  /** Anomalies only: whether Cloudflare's team has manually verified this
+   * signal as a real event, or it's still algorithm-only. */
+  verificationStatus?: "VERIFIED" | "UNVERIFIED";
 }
 
 export interface OutagesResponse {
@@ -48,6 +57,12 @@ export interface ThreatEvent {
   shareValue?: string; // attack hotspots only: % of global attack traffic
   location: OutageLocation | null;
   asns: OutageAsn[];
+  /** Explicit "who did this" — e.g. "AS20485 (TRANSTELECOM), Russia" for
+   * hijacks/leaks. Populated for kinds where a clear source exists. */
+  sourceLabel?: string;
+  /** Explicit "who was affected" — e.g. "AS398465 (PDR-SERVERS), United
+   * States". Populated for kinds where a clear destination/victim exists. */
+  destinationLabel?: string;
 }
 
 export interface ThreatsResponse {
