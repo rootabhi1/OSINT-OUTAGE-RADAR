@@ -2,8 +2,8 @@
 
 import type { NormalizedOutage } from "@/lib/types";
 import { SignalTrace } from "./SignalTrace";
-import { scopeLabel, confidenceLabel, impactLine } from "@/lib/interpret";
-import { X, MapPin, Server, Clock, ExternalLink, ShieldAlert, CircleHelp, CircleCheck } from "lucide-react";
+import { scopeLabel, confidenceLabel, impactLine, outageCauseLabel } from "@/lib/interpret";
+import { X, MapPin, Server, Clock, ExternalLink, ShieldAlert, CircleHelp, CircleCheck, Zap } from "lucide-react";
 
 const SEVERITY_LABEL: Record<string, string> = {
   critical: "Critical outage",
@@ -82,8 +82,17 @@ export function DetailPanel({
           <p className="font-sans text-[13px] leading-relaxed text-[#E7E9EC]">
             {impactLine(outage)}
           </p>
-          <p className="mt-2 font-mono text-[10px] text-[#5B6572]">{scopeLabel(outage.scope)}</p>
+          <p className="mt-2 font-mono text-[10px] text-[#5B6572]">{scopeLabel(outage)}</p>
         </div>
+
+        {outageCauseLabel(outage.outageCause) && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <Zap size={12} className="text-[#FFB020]" />
+            <span className="font-mono text-[10px] text-[#FFB020]">
+              Cause: {outageCauseLabel(outage.outageCause)}
+            </span>
+          </div>
+        )}
 
         <div className="mt-2 flex items-center gap-1.5">
           {confidenceLabel(outage).tone === "confirmed" ? (
