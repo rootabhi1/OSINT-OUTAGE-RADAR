@@ -19,31 +19,41 @@ export function getDemoOutages(): NormalizedOutage[] {
   const now = Date.now();
   const hoursAgo = (h: number) => new Date(now - h * 3600_000).toISOString();
 
-  // Tuple: [code, name, eventType, scope, description, severity, startHoursAgo, endHoursAgo]
+  // Tuple: [code, name, eventType, outageType, description/scope, severity, startHoursAgo, endHoursAgo, outageCause?, verificationStatus?]
   // startHoursAgo must be >= endHoursAgo; endHoursAgo = 0 means still ongoing.
-  const demo: Array<[string, string, string, string, string, string, number, number]> = [
-    ["IR", "Iran", "OUTAGE", "NATIONAL", "National connectivity drop coinciding with reported network restrictions.", "critical", 3, 0],
-    ["PK", "Pakistan", "OUTAGE", "REGIONAL", "Regional disruption affecting mobile network operators.", "elevated", 90, 14],
-    ["CU", "Cuba", "OUTAGE", "NATIONAL", "Nationwide connectivity loss following reported grid failure.", "critical", 26, 0],
-    ["FR", "France", "TRAFFIC_ANOMALY", "NETWORK", "Traffic anomaly detected on a regional transit provider.", "minor", 55, 5],
-    ["BR", "Brazil", "TRAFFIC_ANOMALY", "LOCATION", "Localized drop in HTTP request volume, cause unconfirmed.", "minor", 20, 8],
-    ["MM", "Myanmar", "OUTAGE", "REGIONAL", "Intermittent regional outages reported over several days.", "elevated", 40, 6],
+  const demo: Array<
+    [string, string, string, string, string, string, number, number, string | undefined, ("VERIFIED" | "UNVERIFIED" | undefined)]
+  > = [
+    ["IR", "Iran", "OUTAGE", "NATIONWIDE", "Nationwide", "critical", 3, 0, "GOVERNMENT_DIRECTED", undefined],
+    ["PK", "Pakistan", "OUTAGE", "REGIONAL", "Multiple cities in Punjab", "elevated", 90, 14, "TECHNICAL_PROBLEMS", undefined],
+    ["CU", "Cuba", "OUTAGE", "NATIONWIDE", "Nationwide", "critical", 26, 0, "POWER_OUTAGE", undefined],
+    ["FR", "France", "TRAFFIC_ANOMALY", "NETWORK", "", "minor", 55, 5, undefined, "UNVERIFIED"],
+    ["BR", "Brazil", "TRAFFIC_ANOMALY", "LOCATION", "", "minor", 20, 8, undefined, "VERIFIED"],
+    ["MM", "Myanmar", "OUTAGE", "REGIONAL", "Yangon and Mandalay regions", "elevated", 40, 6, "GOVERNMENT_DIRECTED", undefined],
   ];
 
-  return demo.map(([code, name, eventType, scope, description, severity, startH, endH], i) => {
+  return demo.map(([code, name, eventType, outageType, scope, severity, startH, endH, outageCause, verificationStatus], i) => {
     const c = CENTROIDS[code];
+    const isAnomaly = eventType === "TRAFFIC_ANOMALY";
+    const asns = isAnomaly ? [{ asn: 64500 + i, name: `SAMPLE-ISP-${i}` }] : [];
+    const description = isAnomaly
+      ? `${verificationStatus === "VERIFIED" ? "Verified" : "Unverified"} traffic anomaly affecting AS${asns[0].asn} (${asns[0].name}) in ${name}.`
+      : scope || name;
     return {
       id: `demo-${i}`,
-      source: eventType === "TRAFFIC_ANOMALY" ? "anomaly" : "outage",
+      source: isAnomaly ? "anomaly" : "outage",
       eventType,
       description,
       startDate: hoursAgo(startH),
       endDate: endH === 0 ? null : hoursAgo(endH),
-      scope,
+      scope: scope || name,
       severity: severity as NormalizedOutage["severity"],
       locations: [{ code, name, latitude: c?.[0], longitude: c?.[1] }],
-      asns: [],
+      asns,
       linkedUrl: null,
+      outageCause,
+      outageType: isAnomaly ? undefined : outageType,
+      verificationStatus,
     };
   });
 }
@@ -74,6 +84,8 @@ export function getDemoThreats(): ThreatEvent[] {
     confidence?: number;
     shareValue?: string;
     asns?: { asn: number; name: string }[];
+    sourceLabel?: string;
+    destinationLabel?: string;
   }> = [
     {
       kind: "bgp_hijack",
@@ -85,6 +97,8 @@ export function getDemoThreats(): ThreatEvent[] {
       hoursAgo: 2,
       confidence: 9,
       asns: [{ asn: 20485, name: "TRANSTELECOM" }],
+      sourceLabel: "AS20485 (TRANSTELECOM), Russia",
+      destinationLabel: "AS15169 (GOOGLE); AS16509 (AMAZON-02)",
     },
     {
       kind: "bgp_leak",
@@ -95,6 +109,7 @@ export function getDemoThreats(): ThreatEvent[] {
         "A network unintentionally re-advertised routes it received from one provider to another, temporarily creating an inefficient or unstable path for that traffic.",
       hoursAgo: 9,
       asns: [{ asn: 398465, name: "PDR-SERVERS" }],
+      sourceLabel: "AS398465 (PDR-SERVERS), United States",
     },
     {
       kind: "bgp_hijack",
@@ -106,6 +121,7 @@ export function getDemoThreats(): ThreatEvent[] {
       hoursAgo: 15,
       confidence: 3,
       asns: [{ asn: 28573, name: "CLARO S.A" }],
+      sourceLabel: "AS28573 (CLARO S.A), Brazil",
     },
     {
       kind: "attack_l3",
@@ -116,6 +132,7 @@ export function getDemoThreats(): ThreatEvent[] {
         "The largest share of network-layer attack traffic Cloudflare mitigated today originated from networks in this country.",
       hoursAgo: 1,
       shareValue: "18.4",
+      sourceLabel: "China",
     },
     {
       kind: "attack_l7",
@@ -151,6 +168,8 @@ export function getDemoThreats(): ThreatEvent[] {
       shareValue: d.shareValue,
       location: { code: d.code, name: d.name, latitude: c?.[0], longitude: c?.[1] },
       asns: d.asns ?? [],
+      sourceLabel: d.sourceLabel,
+      destinationLabel: d.destinationLabel,
     };
   });
 }
