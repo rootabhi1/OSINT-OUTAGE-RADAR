@@ -59,6 +59,25 @@ export function ThreatDetailPanel({ threat, onClose }: { threat: ThreatEvent | n
           <p className="font-sans text-[13px] leading-relaxed text-[#E7E9EC]">{threatImpactLine(threat)}</p>
         </div>
 
+        {(threat.sourceLabel || threat.destinationLabel) && (
+          <div className="mt-3 space-y-2 rounded-sm border border-[#1E2734] bg-[#0F141C] p-3 font-mono text-[11px]">
+            {threat.sourceLabel && (
+              <div className="flex items-start gap-2">
+                <span className="w-16 shrink-0 text-[#5B6572]">SOURCE</span>
+                <span className="text-[#E7E9EC]">{threat.sourceLabel}</span>
+              </div>
+            )}
+            {threat.destinationLabel && (
+              <div className="flex items-start gap-2">
+                <span className="w-16 shrink-0 text-[#5B6572]">
+                  {threat.kind.startsWith("attack") ? "TARGET" : "AFFECTED"}
+                </span>
+                <span className="text-[#E7E9EC]">{threat.destinationLabel}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mt-2 flex items-center gap-1.5">
           {confidence.tone === "confirmed" ? (
             <CircleCheck size={12} className="text-[#43D9C8]" />
