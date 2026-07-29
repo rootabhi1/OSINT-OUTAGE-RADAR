@@ -39,21 +39,36 @@ async function fetchBgpHijacks(token: string): Promise<ThreatEvent[]> {
   const events = json?.result?.events ?? [];
   return events.map((e: any): ThreatEvent => {
     const hijackerInfo = asnInfo[e.hijacker_asn];
+    const victimAsns: number[] = e.victim_asns ?? [];
+    const victimNames = victimAsns.map((asn) => {
+      const info = asnInfo[asn];
+      return info ? `AS${asn} (${info.org_name})` : `AS${asn}`;
+    });
+    const sourceLabel = `AS${e.hijacker_asn}${hijackerInfo ? ` (${hijackerInfo.org_name})` : ""}${
+      hijackerInfo?.country_code ? `, ${locationFor(hijackerInfo.country_code)?.name}` : ""
+    }`;
+    const destinationLabel =
+      victimNames.length > 0
+        ? victimNames.slice(0, 3).join("; ") + (victimNames.length > 3 ? ` +${victimNames.length - 3} more` : "")
+        : undefined;
+
     return {
       id: `bgp-hijack-${e.id}`,
       kind: "bgp_hijack",
       title: `Possible hijack by AS${e.hijacker_asn}${hijackerInfo ? ` (${hijackerInfo.org_name})` : ""}`,
-      description: `Affects ${e.victim_asns?.length ?? 0} network(s) and ${e.prefixes?.length ?? 0} address block(s). Confidence score ${e.confidence_score}/10+ based on ${e.tags?.length ?? 0} signal(s).`,
+      description: `${e.prefixes?.length ?? 0} address block(s) rerouted. Confidence score ${e.confidence_score}/10, based on ${e.tags?.length ?? 0} signal(s).`,
       detectedAt: e.min_hijack_ts ?? e.max_hijack_ts,
       confidence: e.confidence_score,
       location: locationFor(hijackerInfo?.country_code),
       asns: [
         { asn: e.hijacker_asn, name: hijackerInfo?.org_name ?? `AS${e.hijacker_asn}` },
-        ...(e.victim_asns ?? []).map((asn: number) => ({
+        ...victimAsns.map((asn: number) => ({
           asn,
           name: asnInfo[asn]?.org_name ?? `AS${asn}`,
         })),
       ],
+      sourceLabel,
+      destinationLabel,
     };
   });
 }
@@ -66,6 +81,9 @@ async function fetchBgpLeaks(token: string): Promise<ThreatEvent[]> {
   const events = json?.result?.events ?? [];
   return events.map((e: any): ThreatEvent => {
     const leakerInfo = asnInfo[e.leak_asn];
+    const sourceLabel = `AS${e.leak_asn}${leakerInfo ? ` (${leakerInfo.org_name})` : ""}${
+      leakerInfo?.country_code ? `, ${locationFor(leakerInfo.country_code)?.name}` : ""
+    }`;
     return {
       id: `bgp-leak-${e.id}`,
       kind: "bgp_leak",
@@ -73,6 +91,7 @@ async function fetchBgpLeaks(token: string): Promise<ThreatEvent[]> {
       description: `${e.leak_count ?? 0} leaked announcement(s) affecting ${e.prefix_count ?? 0} address block(s), observed by ${e.peer_count ?? 0} route collector(s).`,
       detectedAt: e.min_ts ?? e.detected_ts,
       location: locationFor(leakerInfo?.country_code),
+      sourceLabel,
       asns: [{ asn: e.leak_asn, name: leakerInfo?.org_name ?? `AS${e.leak_asn}` }],
     };
   });
@@ -80,22 +99,32 @@ async function fetchBgpLeaks(token: string): Promise<ThreatEvent[]> {
 
 async function fetchAttackHotspots(
   token: string,
-  layer: "layer3" | "layer7"
+  layer: "layer3" | "layer7",
+  direction: "origin" | "target"
 ): Promise<ThreatEvent[]> {
-  const json = await radarGet(`/attacks/${layer}/top/locations/origin?dateRange=1d&format=json`, token);
+  const json = await radarGet(`/attacks/${layer}/top/locations/${direction}?dateRange=1d&format=json`, token);
   const top = json?.result?.top_0 ?? [];
   const kind = layer === "layer3" ? "attack_l3" : "attack_l7";
   const label = layer === "layer3" ? "network-layer (DDoS)" : "web application";
-  return top.slice(0, 5).map((t: any): ThreatEvent => ({
-    id: `${kind}-${t.originCountryAlpha2}`,
-    kind,
-    title: `Rank #${t.rank} ${label} attack origin: ${t.originCountryName}`,
-    description: `${t.value}% of all ${label} attack traffic Cloudflare mitigated in the last 24 hours originated from networks in this country.`,
-    detectedAt: new Date().toISOString(),
-    shareValue: t.value,
-    location: locationFor(t.originCountryAlpha2),
-    asns: [],
-  }));
+  const dirLabel = direction === "origin" ? "origin" : "target";
+  return top.slice(0, 5).map((t: any): ThreatEvent => {
+    const countryCode = direction === "origin" ? t.originCountryAlpha2 : t.targetCountryAlpha2;
+    const countryName = direction === "origin" ? t.originCountryName : t.targetCountryName;
+    return {
+      id: `${kind}-${direction}-${countryCode}`,
+      kind,
+      title: `Rank #${t.rank} ${label} attack ${dirLabel}: ${countryName}`,
+      description: `${t.value}% of all ${label} attack traffic Cloudflare mitigated in the last 24 hours was ${
+        direction === "origin" ? "sent from" : "aimed at"
+      } networks in this country.`,
+      detectedAt: new Date().toISOString(),
+      shareValue: t.value,
+      location: locationFor(countryCode),
+      asns: [],
+      sourceLabel: direction === "origin" ? countryName : undefined,
+      destinationLabel: direction === "target" ? countryName : undefined,
+    };
+  });
 }
 
 export async function GET() {
@@ -110,13 +139,15 @@ export async function GET() {
   }
 
   try {
-    const [hijacks, leaks, l3, l7] = await Promise.all([
+    const [hijacks, leaks, l3Origin, l3Target, l7Origin, l7Target] = await Promise.all([
       fetchBgpHijacks(token).catch(() => []),
       fetchBgpLeaks(token).catch(() => []),
-      fetchAttackHotspots(token, "layer3").catch(() => []),
-      fetchAttackHotspots(token, "layer7").catch(() => []),
+      fetchAttackHotspots(token, "layer3", "origin").catch(() => []),
+      fetchAttackHotspots(token, "layer3", "target").catch(() => []),
+      fetchAttackHotspots(token, "layer7", "origin").catch(() => []),
+      fetchAttackHotspots(token, "layer7", "target").catch(() => []),
     ]);
-    const combined = [...hijacks, ...leaks, ...l3, ...l7].sort(
+    const combined = [...hijacks, ...leaks, ...l3Origin, ...l3Target, ...l7Origin, ...l7Target].sort(
       (a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime()
     );
     return NextResponse.json<ThreatsResponse>({
