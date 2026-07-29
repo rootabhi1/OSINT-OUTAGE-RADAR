@@ -10,28 +10,24 @@ const RADAR_BASE = "https://api.cloudflare.com/client/v4/radar";
 type Centroids = Record<string, [number, number, string]>;
 const CENTROIDS = centroids as unknown as Centroids;
 
-function locationsWithCoords(raw: unknown): OutageLocation[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((loc: any) => {
-      const code: string = loc?.code ?? loc?.location ?? "";
-      const name: string = loc?.name ?? CENTROIDS[code]?.[2] ?? code;
-      const centroid = CENTROIDS[code];
-      return {
-        code,
-        name,
-        latitude: centroid?.[0],
-        longitude: centroid?.[1],
-      };
-    })
-    .filter((l: OutageLocation) => l.code);
+function withCoords(code: string, name?: string): OutageLocation {
+  const centroid = CENTROIDS[code];
+  return {
+    code,
+    name: name ?? centroid?.[2] ?? code,
+    latitude: centroid?.[0],
+    longitude: centroid?.[1],
+  };
 }
 
-function severityFor(eventType: string, scope: string, ongoing: boolean): "critical" | "elevated" | "minor" {
-  const t = `${eventType} ${scope}`.toLowerCase();
-  if (t.includes("outage") && (t.includes("national") || t.includes("country"))) return "critical";
-  if (t.includes("outage")) return ongoing ? "critical" : "elevated";
-  return "minor";
+// Cloudflare classifies confirmed outages by real cause — surfacing this
+// verbatim (mapped to plain language) is the actual "detail analysis" a
+// generic "traffic was abnormal" description can't provide.
+function severityForOutageType(outageType?: string): "critical" | "elevated" | "minor" {
+  const t = (outageType ?? "").toUpperCase();
+  if (t.includes("NATIONWIDE") || t.includes("NATIONAL") || t.includes("COUNTRY")) return "critical";
+  if (t.includes("REGIONAL") || t.includes("LOCAL")) return "elevated";
+  return "elevated";
 }
 
 async function fetchOutages(token: string): Promise<NormalizedOutage[]> {
@@ -43,23 +39,42 @@ async function fetchOutages(token: string): Promise<NormalizedOutage[]> {
     throw new Error(`Radar outages request failed: ${res.status}`);
   }
   const json = await res.json();
-  const list = json?.result?.annotations ?? json?.result?.outages ?? [];
+  const list = json?.result?.annotations ?? [];
+
   return list.map((item: any): NormalizedOutage => {
-    const ongoing = !item.endDate;
+    // locationsDetails is the {code,name} array — `locations` (no
+    // "Details") is just a bare array of ISO codes, and was the source of
+    // every outage/anomaly showing "Unknown location": reading .code off a
+    // plain string always returns undefined.
+    const locationsDetails: Array<{ code: string; name: string }> =
+      item.locationsDetails ?? [];
+    const locations =
+      locationsDetails.length > 0
+        ? locationsDetails.map((l) => withCoords(l.code, l.name))
+        : (item.locations ?? []).map((code: string) => withCoords(code));
+
+    const asnsDetails: Array<{ asn: string | number; name: string }> = item.asnsDetails ?? [];
+    const asns = asnsDetails.length
+      ? asnsDetails.map((a) => ({ asn: Number(a.asn), name: a.name }))
+      : (item.asns ?? []).map((asn: number) => ({ asn, name: `AS${asn}` }));
+
+    const outageCause: string | undefined = item.outage?.outageCause;
+    const outageType: string | undefined = item.outage?.outageType;
+
     return {
-      id: String(item.id ?? item.uuid ?? `${item.startDate}-${item.eventType}`),
+      id: String(item.id ?? `${item.startDate}-${item.eventType}`),
       source: "outage",
-      eventType: item.eventType ?? item.outageType ?? "OUTAGE",
-      description: item.description ?? "No further detail provided by Cloudflare Radar.",
+      eventType: item.eventType ?? "OUTAGE",
+      description: item.description || item.scope || "No further detail provided by Cloudflare Radar.",
       startDate: item.startDate,
       endDate: item.endDate ?? null,
-      scope: item.scope ?? "UNKNOWN",
-      severity: severityFor(item.eventType ?? "", item.scope ?? "", ongoing),
-      locations: locationsWithCoords(item.locations),
-      asns: Array.isArray(item.asns)
-        ? item.asns.map((a: any) => ({ asn: a.asn, name: a.name ?? `AS${a.asn}` }))
-        : [],
-      linkedUrl: item.linkedUrl ?? item.linkedURL ?? null,
+      scope: item.scope ?? "Unspecified area",
+      severity: severityForOutageType(outageType),
+      locations,
+      asns,
+      linkedUrl: item.linkedUrl ?? null,
+      outageCause,
+      outageType,
     };
   });
 }
@@ -73,24 +88,38 @@ async function fetchAnomalies(token: string): Promise<NormalizedOutage[]> {
     throw new Error(`Radar anomalies request failed: ${res.status}`);
   }
   const json = await res.json();
-  const list = json?.result?.trafficAnomalies ?? json?.result?.annotations ?? [];
-  return list.map((item: any): NormalizedOutage => ({
-    id: String(item.uuid ?? item.id ?? `${item.startDate}-anomaly`),
-    source: "anomaly",
-    eventType: item.type ?? "TRAFFIC_ANOMALY",
-    description:
-      item.description ??
-      "Automatically detected traffic anomaly; may indicate an unconfirmed outage.",
-    startDate: item.startDate,
-    endDate: item.endDate ?? null,
-    scope: item.asnDetails?.name ? "NETWORK" : item.locationDetails?.name ? "LOCATION" : "UNKNOWN",
-    severity: "minor",
-    locations: item.locationDetails
-      ? locationsWithCoords([{ code: item.locationDetails.code, name: item.locationDetails.name }])
-      : [],
-    asns: item.asnDetails ? [{ asn: item.asnDetails.asn, name: item.asnDetails.name }] : [],
-    linkedUrl: null,
-  }));
+  const list = json?.result?.trafficAnomalies ?? [];
+
+  return list.map((item: any): NormalizedOutage => {
+    // locationDetails/asnDetails are singular objects here (not arrays,
+    // unlike the outages endpoint above) — {code,name} and {asn,name}.
+    const loc = item.locationDetails;
+    const asn = item.asnDetails;
+    const status: "VERIFIED" | "UNVERIFIED" = item.status === "VERIFIED" ? "VERIFIED" : "UNVERIFIED";
+
+    const locations = loc ? [withCoords(loc.code, loc.name)] : [];
+    const asns = asn ? [{ asn: Number(asn.asn), name: asn.name }] : [];
+
+    const subject = asn?.name ? `AS${asn.asn} (${asn.name})` : loc?.name ?? "an unspecified network";
+    const description = `${status === "VERIFIED" ? "Verified" : "Unverified"} traffic anomaly affecting ${subject}${
+      loc?.name && asn?.name ? ` in ${loc.name}` : ""
+    }.`;
+
+    return {
+      id: String(item.uuid ?? `${item.startDate}-anomaly`),
+      source: "anomaly",
+      eventType: item.type ?? "TRAFFIC_ANOMALY",
+      description,
+      startDate: item.startDate,
+      endDate: item.endDate ?? null,
+      scope: item.type === "AS" ? "One network" : item.type === "ORIGIN" ? "One origin/service" : "One location",
+      severity: "minor",
+      locations,
+      asns,
+      linkedUrl: null,
+      verificationStatus: status,
+    };
+  });
 }
 
 export async function GET() {
