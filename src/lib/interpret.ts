@@ -20,6 +20,18 @@ export function outageCauseLabel(cause?: string): string | null {
 }
 
 /**
+ * Cloudflare genuinely doesn't provide a country for network-scoped
+ * anomalies (type "AS") — that's correct, not missing data. Falling back to
+ * "Unknown location" in that case throws away real information we do have
+ * (the network name); show that instead.
+ */
+export function primaryLabel(outage: NormalizedOutage): string {
+  if (outage.locations[0]?.name) return outage.locations[0].name;
+  if (outage.asns[0]?.name) return `AS${outage.asns[0].asn} (${outage.asns[0].name})`;
+  return "Location not specified";
+}
+
+/**
  * Cloudflare Radar's raw fields (scope: "NATIONAL", source: "anomaly", etc.)
  * are precise but meaningless to someone without networking background.
  * These helpers translate them into plain sentences a general user can
@@ -59,22 +71,26 @@ export function confidenceLabel(outage: NormalizedOutage): {
  * outageCause) rather than guessing from free-text scope.
  */
 export function impactLine(outage: NormalizedOutage): string {
-  const place = outage.locations[0]?.name ?? "the affected area";
   const ongoing = !outage.endDate;
   const cause = outageCauseLabel(outage.outageCause);
   const causePhrase = cause ? `, attributed to ${cause}` : "";
 
   if (outage.source === "anomaly") {
     const verified = outage.verificationStatus === "VERIFIED";
+    const hasLocation = !!outage.locations[0]?.name;
+    const place = hasLocation
+      ? `from ${outage.locations[0].name}`
+      : `on ${primaryLabel(outage)}`;
     return ongoing
-      ? `Traffic from ${place} looks abnormal right now${verified ? " and Cloudflare's team has confirmed this" : ""}. ${
+      ? `Traffic ${place} looks abnormal right now${verified ? " and Cloudflare's team has confirmed this" : ""}. ${
           verified ? "" : "This alone doesn't confirm an outage — it's an algorithmic signal worth watching."
         }`.trim()
-      : `Traffic from ${place} looked abnormal for a period, then returned to normal.${
+      : `Traffic ${place} looked abnormal for a period, then returned to normal.${
           verified ? " Cloudflare's team confirmed this as a real event." : " No outage was confirmed."
         }`;
   }
 
+  const place = outage.locations[0]?.name ?? "the affected area";
   const type = (outage.outageType ?? "").toUpperCase();
   if (type.includes("NATIONWIDE") || type.includes("NATIONAL") || type.includes("COUNTRY")) {
     return ongoing
