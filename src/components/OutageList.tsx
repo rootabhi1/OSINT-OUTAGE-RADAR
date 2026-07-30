@@ -3,6 +3,7 @@
 import type { NormalizedOutage } from "@/lib/types";
 import { SignalTrace } from "./SignalTrace";
 import { impactLine } from "@/lib/interpret";
+import { primaryLabel } from "@/lib/interpret";
 import { AlertTriangle, Activity, Radio } from "lucide-react";
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -68,7 +69,6 @@ export function OutageList({
           </div>
         )}
         {filtered.map((o) => {
-          const primary = o.locations[0];
           const isSelected = o.id === selectedId;
           return (
             <button
@@ -86,7 +86,7 @@ export function OutageList({
                     <Activity size={12} className={SEVERITY_STYLES[o.severity].split(" ")[0]} />
                   )}
                   <span className="font-mono text-[12px] font-medium text-[#E7E9EC]">
-                    {primary?.name ?? "Unknown location"}
+                    {primaryLabel(o)}
                   </span>
                 </div>
                 <span
