@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { GeocodeResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -8,14 +9,6 @@ export const dynamic = "force-dynamic";
 // proxied through our own server rather than called directly from the
 // browser, and kept to a single lightweight request per search.
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-
-export interface GeocodeResult {
-  name: string;
-  displayName: string;
-  lat: number;
-  lng: number;
-  type: string;
-}
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim();
