@@ -1,12 +1,13 @@
 "use client";
 
-import { AlertTriangle, Radar, Search } from "lucide-react";
+import { AlertTriangle, Radar, Search, Plane } from "lucide-react";
 
-export type Mode = "outages" | "threats" | "investigate";
+export type Mode = "outages" | "threats" | "investigate" | "flights";
 
 const TABS: { mode: Mode; label: string; icon: any }[] = [
   { mode: "outages", label: "OUTAGES", icon: AlertTriangle },
   { mode: "threats", label: "THREATS", icon: Radar },
+  { mode: "flights", label: "FLIGHTS", icon: Plane },
   { mode: "investigate", label: "INVESTIGATE", icon: Search },
 ];
 
