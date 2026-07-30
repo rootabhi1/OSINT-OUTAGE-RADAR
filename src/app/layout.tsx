@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Signal Loss — Critical Infrastructure Outage Radar",
+  title: "HORUS — Global OSINT & Threat Intelligence Radar",
   description:
-    "Live tracking of internet outages, censorship events, and routing anomalies powered by the Cloudflare Radar API.",
+    "Live internet outages, BGP hijacks and DDoS attack origins, real-time flight tracking, and URL threat investigation — powered by Cloudflare Radar, OpenSky Network, and Cloudflare URL Scanner.",
 };
 
 export default function RootLayout({
