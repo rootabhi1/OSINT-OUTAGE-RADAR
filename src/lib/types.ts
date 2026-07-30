@@ -98,3 +98,41 @@ export interface ScanResult {
   error?: string;
 }
 
+// --- Live flights (OpenSky Network) ---
+
+export interface FlightState {
+  icao24: string;
+  callsign: string | null;
+  originCountry: string;
+  longitude: number;
+  latitude: number;
+  baroAltitude: number | null;
+  onGround: boolean;
+  velocity: number | null; // m/s
+  heading: number | null; // degrees, 0 = north
+  verticalRate: number | null; // m/s
+  geoAltitude: number | null;
+  squawk: string | null;
+  category: number;
+  categoryLabel: string;
+  lastContact: number; // unix seconds
+}
+
+export interface FlightsResponse {
+  flights: FlightState[];
+  fetchedAt: string;
+  observedAt: number | null; // unix seconds OpenSky reports this data as of
+  demo?: boolean;
+  error?: string;
+}
+
+// --- Geocoding (address/city search) ---
+
+export interface GeocodeResult {
+  name: string;
+  displayName: string;
+  lat: number;
+  lng: number;
+  type: string;
+}
+
