@@ -5,7 +5,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import centroids from "@/lib/country-centroids.json";
 import { Search, X, Satellite, Moon, MapPin, ExternalLink, Loader2 } from "lucide-react";
-import type { GeocodeResult } from "@/app/api/geocode/route";
+import type { GeocodeResult } from "@/lib/types";
 
 type Centroids = Record<string, [number, number, string]>;
 const CENTROIDS = centroids as unknown as Centroids;
@@ -47,6 +47,43 @@ export interface GlobeMarker {
   selected?: boolean;
 }
 
+export interface FlightPoint {
+  id: string;
+  latitude: number;
+  longitude: number;
+  heading: number; // degrees
+  color: string;
+}
+
+// A small triangular "plane" glyph drawn to a canvas at runtime and
+// registered as a map image — lets thousands of aircraft render as a real
+// GPU-rendered symbol layer instead of one DOM element each (which would
+// fall over well before real-world traffic volume).
+function buildPlaneIcon(map: maplibregl.Map, id: string, color: string) {
+  if (map.hasImage(id)) return;
+  const size = 24;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  ctx.translate(size / 2, size / 2);
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "#05070A";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  // Simple chevron/arrow pointing "up" (north) at rotation 0 — MapLibre's
+  // icon-rotate then points it toward true_track heading.
+  ctx.moveTo(0, -9);
+  ctx.lineTo(6, 8);
+  ctx.lineTo(0, 4);
+  ctx.lineTo(-6, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  const imageData = ctx.getImageData(0, 0, size, size);
+  map.addImage(id, imageData, { pixelRatio: 2 });
+}
+
 function createMarkerElement(m: GlobeMarker): HTMLDivElement {
   const el = document.createElement("div");
   const size = m.selected ? 14 : 10;
@@ -78,16 +115,23 @@ export function GlobeMap({
   countryCodesWithEvents,
   onSelectCountry,
   legend,
+  flights,
+  onSelectFlight,
+  selectedFlightId,
 }: {
   markers: GlobeMarker[];
   onSelectMarker: (id: string) => void;
   countryCodesWithEvents: Set<string>;
   onSelectCountry: (code: string, lat: number, lng: number) => void;
   legend: { color: string; label: string }[];
+  flights?: FlightPoint[];
+  onSelectFlight?: (id: string) => void;
+  selectedFlightId?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerObjsRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const onSelectFlightRef = useRef(onSelectFlight);
   const [mapReady, setMapReady] = useState(false);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -164,6 +208,37 @@ export function GlobeMap({
         layout: { visibility: "visible" },
       });
 
+      // Live aircraft — GeoJSON + symbol layer (GPU-rendered) rather than
+      // DOM markers, since this can be thousands of points at once.
+      buildPlaneIcon(map, "plane-icon", "#43D9C8");
+      buildPlaneIcon(map, "plane-icon-selected", "#FFB020");
+      map.addSource("flights", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "flights-layer",
+        type: "symbol",
+        source: "flights",
+        layout: {
+          "icon-image": ["case", ["==", ["get", "selected"], true], "plane-icon-selected", "plane-icon"],
+          "icon-rotate": ["get", "heading"],
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-size": ["case", ["==", ["get", "selected"], true], 1.3, 0.9],
+        },
+      });
+      map.on("click", "flights-layer", (e) => {
+        const id = e.features?.[0]?.properties?.id;
+        if (id && onSelectFlightRef.current) onSelectFlightRef.current(id);
+      });
+      map.on("mouseenter", "flights-layer", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "flights-layer", () => {
+        map.getCanvas().style.cursor = "";
+      });
+
       map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
       setMapReady(true);
     });
@@ -217,6 +292,31 @@ export function GlobeMap({
       existing.set(m.id, markerObj);
     }
   }, [markers, mapReady, onSelectMarker]);
+
+  useEffect(() => {
+    onSelectFlightRef.current = onSelectFlight;
+  }, [onSelectFlight]);
+
+  // Push live flight positions into the GeoJSON source — this is what
+  // actually makes aircraft move across the globe as new OpenSky data
+  // comes in, rather than sitting static.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const source = map.getSource("flights") as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+
+    const features = (flights ?? []).map((f) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [f.longitude, f.latitude] },
+      properties: {
+        id: f.id,
+        heading: f.heading,
+        selected: f.id === selectedFlightId,
+      },
+    }));
+    source.setData({ type: "FeatureCollection", features });
+  }, [flights, selectedFlightId, mapReady]);
 
   const coordMatch = useMemo(() => {
     const m = query.match(COORD_PATTERN);
@@ -373,8 +473,9 @@ export function GlobeMap({
         </a>
       )}
 
-      {/* Basemap toggle */}
-      <div className="absolute right-3 top-14 z-10 flex flex-col overflow-hidden rounded-sm border border-[#1E2734]">
+      {/* Basemap toggle — positioned below the built-in zoom/compass
+          control (top-right, ~10-100px tall) so they don't overlap. */}
+      <div className="absolute right-3 top-28 z-10 flex flex-col overflow-hidden rounded-sm border border-[#1E2734]">
         <button
           onClick={() => setBasemap("satellite")}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] tracking-wide ${
