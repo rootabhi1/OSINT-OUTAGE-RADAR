@@ -13,3 +13,7 @@ services:
         sync: false
       - key: CLOUDFLARE_ACCOUNT_ID
         sync: false
+      - key: OPENSKY_CLIENT_ID
+        sync: false
+      - key: OPENSKY_CLIENT_SECRET
+        sync: false
