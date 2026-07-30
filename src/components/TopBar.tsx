@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RadioTower } from "lucide-react";
+import { Eye } from "lucide-react";
 
 export function TopBar({
   total,
@@ -30,15 +30,15 @@ export function TopBar({
     <header className="flex items-center justify-between border-b border-[#1E2734] bg-[#0A0D12]/95 px-5 py-3">
       <div className="flex items-center gap-3">
         <div className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#FFB020]/40 bg-[#FFB020]/10">
-          <RadioTower size={16} className="text-[#FFB020]" strokeWidth={2} />
+          <Eye size={16} className="text-[#FFB020]" strokeWidth={2} />
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FFB020]/20" />
         </div>
         <div>
           <h1 className="font-mono text-[13px] font-semibold tracking-[0.18em] text-[#E7E9EC]">
-            SIGNAL&nbsp;LOSS
+            HORUS
           </h1>
           <p className="font-mono text-[10px] tracking-[0.14em] text-[#5B6572]">
-            CRITICAL INFRASTRUCTURE OUTAGE RADAR
+            GLOBAL OSINT &amp; THREAT INTELLIGENCE RADAR
           </p>
         </div>
       </div>
