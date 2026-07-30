@@ -135,7 +135,12 @@ export function GlobeMap({
   const [mapReady, setMapReady] = useState(false);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [basemap, setBasemap] = useState<"satellite" | "dark">("satellite");
+  // Defaults to "dark" (the vector basemap) rather than satellite: Esri's
+  // free imagery tier has real, frequent "Map data not yet available" gaps
+  // (confirmed on the live deployment, not just theoretical), while the
+  // CARTO vector style has full worldwide coverage with no such gaps.
+  // Satellite stays available as a toggle for anyone who wants it anyway.
+  const [basemap, setBasemap] = useState<"satellite" | "dark">("dark");
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResult[]>([]);
   const [geocoding, setGeocoding] = useState(false);
   const [lastLocation, setLastLocation] = useState<{ lat: number; lng: number; label: string } | null>(
@@ -185,7 +190,7 @@ export function GlobeMap({
         type: "raster",
         source: "satellite-tiles",
         paint: { "raster-opacity": 1 },
-        layout: { visibility: "visible" },
+        layout: { visibility: "none" },
       });
 
       // Place-name / country-border overlay so satellite view isn't just
@@ -205,7 +210,7 @@ export function GlobeMap({
         type: "raster",
         source: "satellite-labels",
         paint: { "raster-opacity": 0.9 },
-        layout: { visibility: "visible" },
+        layout: { visibility: "none" },
       });
 
       // Live aircraft — GeoJSON + symbol layer (GPU-rendered) rather than
@@ -481,7 +486,7 @@ export function GlobeMap({
           className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] tracking-wide ${
             basemap === "satellite" ? "bg-[#1E2734] text-[#E7E9EC]" : "bg-[#0B0F16] text-[#5B6572]"
           }`}
-          title="Satellite imagery"
+          title="Satellite imagery — free tier, coverage gaps possible in some areas"
         >
           <Satellite size={11} /> SAT
         </button>
