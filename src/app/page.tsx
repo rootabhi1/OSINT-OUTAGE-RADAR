@@ -112,7 +112,7 @@ export default function Home() {
       : mode === "outages"
         ? outageData?.demo && outageData.error
         : mode === "flights"
-          ? flightData?.demo && flightData.error
+          ? flightData?.error
           : null;
 
   const topBarProps =
