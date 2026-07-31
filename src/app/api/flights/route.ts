@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
+import dns from "node:dns";
 import type { FlightState, FlightsResponse } from "@/lib/types";
+
+// Render (and several similar platforms) will attempt an IPv6 connection
+// first by default, then fail with a bare "fetch failed" if that route
+// isn't actually reachable from the platform's network — even when IPv4 to
+// the same host works fine. Forcing IPv4-first here is the standard fix.
+dns.setDefaultResultOrder("ipv4first");
 
 export const dynamic = "force-dynamic";
 
@@ -168,9 +175,13 @@ export async function GET() {
     cachedAt = Date.now();
     return NextResponse.json(response);
   } catch (err) {
-    const fallback = demoFlights(
-      err instanceof Error ? err.message : "Failed to reach OpenSky Network."
-    );
+    let message = "Failed to reach OpenSky Network.";
+    if (err instanceof Error) {
+      const cause = (err as any).cause;
+      const causeDetail = cause?.code || cause?.message;
+      message = causeDetail ? `${err.message} (${causeDetail})` : err.message;
+    }
+    const fallback = demoFlights(message);
     cachedResponse = fallback;
     cachedAt = Date.now();
     return NextResponse.json(fallback);
