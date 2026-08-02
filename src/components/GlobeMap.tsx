@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import centroids from "@/lib/country-centroids.json";
-import { Search, X, Satellite, Moon, MapPin, ExternalLink, Loader2 } from "lucide-react";
+import { Search, X, Satellite, Moon, MapPin, ExternalLink, Loader2, Plus, Minus } from "lucide-react";
 import type { GeocodeResult } from "@/lib/types";
 
 type Centroids = Record<string, [number, number, string]>;
@@ -244,7 +244,6 @@ export function GlobeMap({
         map.getCanvas().style.cursor = "";
       });
 
-      map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
       setMapReady(true);
     });
 
@@ -386,9 +385,10 @@ export function GlobeMap({
       `}</style>
       <div ref={containerRef} className="h-full w-full" />
 
-      {/* Search: country, city/address, or raw "lat,lng" coordinates */}
-      <div className="absolute left-3 top-3 z-10 w-72">
-        <div className="flex items-center gap-2 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 px-2.5 py-2">
+      {/* Search: country, city/address, or raw "lat,lng" coordinates —
+          top-center, so it never sits under either floating side panel. */}
+      <div className="absolute left-1/2 top-3 z-10 w-80 -translate-x-1/2">
+        <div className="flex items-center gap-2 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 px-2.5 py-2 shadow-lg shadow-black/40">
           {geocoding ? (
             <Loader2 size={13} className="shrink-0 animate-spin text-[#5B6572]" />
           ) : (
@@ -420,7 +420,7 @@ export function GlobeMap({
         </div>
 
         {open && coordMatch && (
-          <div className="mt-1 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95">
+          <div className="mt-1 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 shadow-lg shadow-black/40">
             <button
               onClick={() =>
                 flyToPoint(coordMatch.lat, coordMatch.lng, `${coordMatch.lat}, ${coordMatch.lng}`, 8)
@@ -434,7 +434,7 @@ export function GlobeMap({
         )}
 
         {open && !coordMatch && (countryResults.length > 0 || geocodeResults.length > 0) && (
-          <div className="mt-1 max-h-64 overflow-y-auto rounded-sm border border-[#1E2734] bg-[#0B0F16]/95">
+          <div className="mt-1 max-h-64 overflow-y-auto rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 shadow-lg shadow-black/40">
             {countryResults.map((r) => (
               <button
                 key={r.code}
@@ -466,48 +466,74 @@ export function GlobeMap({
         )}
       </div>
 
+      {/* Google Maps fallback link — small pill above the main control bar,
+          bottom-center so it's never hidden behind a side panel either. */}
       {lastLocation && (
         <a
           href={`https://www.google.com/maps/@${lastLocation.lat},${lastLocation.lng},16z/data=!3m1!1e3`}
           target="_blank"
           rel="noreferrer"
-          className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 px-2.5 py-1.5 font-mono text-[10px] text-[#8A93A0] hover:text-[#43D9C8]"
+          className="absolute bottom-14 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 px-2.5 py-1.5 font-mono text-[10px] text-[#8A93A0] shadow-lg shadow-black/40 hover:text-[#43D9C8]"
         >
           <ExternalLink size={10} />
           {lastLocation.label} in Google Maps satellite
         </a>
       )}
 
-      {/* Basemap toggle — positioned below the built-in zoom/compass
-          control (top-right, ~10-100px tall) so they don't overlap. */}
-      <div className="absolute right-3 top-28 z-10 flex flex-col overflow-hidden rounded-sm border border-[#1E2734]">
-        <button
-          onClick={() => setBasemap("satellite")}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] tracking-wide ${
-            basemap === "satellite" ? "bg-[#1E2734] text-[#E7E9EC]" : "bg-[#0B0F16] text-[#5B6572]"
-          }`}
-          title="Satellite imagery — free tier, coverage gaps possible in some areas"
-        >
-          <Satellite size={11} /> SAT
-        </button>
-        <button
-          onClick={() => setBasemap("dark")}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] tracking-wide ${
-            basemap === "dark" ? "bg-[#1E2734] text-[#E7E9EC]" : "bg-[#0B0F16] text-[#5B6572]"
-          }`}
-          title="Dark map"
-        >
-          <Moon size={11} /> DARK
-        </button>
-      </div>
+      {/* Unified bottom-center HUD bar: legend, basemap toggle, zoom —
+          everything a map needs, clustered where it can never be covered
+          by the floating sidebar (left) or detail panel (right). */}
+      <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-sm border border-[#1E2734] bg-[#0B0F16]/95 px-3 py-1.5 shadow-lg shadow-black/40">
+        <div className="flex items-center gap-3 font-mono text-[10px] text-[#8A93A0]">
+          {legend.map((l) => (
+            <span key={l.label} className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: l.color }} />
+              {l.label}
+            </span>
+          ))}
+        </div>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-3 rounded-sm border border-[#1E2734] bg-[#0B0F16]/90 px-3 py-1.5 font-mono text-[10px] text-[#8A93A0]">
-        {legend.map((l) => (
-          <span key={l.label} className="flex items-center gap-1.5">
-            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: l.color }} />
-            {l.label}
-          </span>
-        ))}
+        <div className="h-4 w-px bg-[#1E2734]" />
+
+        <div className="flex overflow-hidden rounded-sm border border-[#1E2734]">
+          <button
+            onClick={() => setBasemap("satellite")}
+            className={`flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] tracking-wide ${
+              basemap === "satellite" ? "bg-[#1E2734] text-[#E7E9EC]" : "text-[#5B6572]"
+            }`}
+            title="Satellite imagery — free tier, coverage gaps possible in some areas"
+          >
+            <Satellite size={11} /> SAT
+          </button>
+          <button
+            onClick={() => setBasemap("dark")}
+            className={`flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] tracking-wide ${
+              basemap === "dark" ? "bg-[#1E2734] text-[#E7E9EC]" : "text-[#5B6572]"
+            }`}
+            title="Dark map"
+          >
+            <Moon size={11} /> DARK
+          </button>
+        </div>
+
+        <div className="h-4 w-px bg-[#1E2734]" />
+
+        <div className="flex overflow-hidden rounded-sm border border-[#1E2734]">
+          <button
+            onClick={() => mapRef.current?.zoomOut({ duration: 300 })}
+            className="px-2 py-1 text-[#8A93A0] hover:bg-[#1E2734] hover:text-[#E7E9EC]"
+            aria-label="Zoom out"
+          >
+            <Minus size={12} />
+          </button>
+          <button
+            onClick={() => mapRef.current?.zoomIn({ duration: 300 })}
+            className="border-l border-[#1E2734] px-2 py-1 text-[#8A93A0] hover:bg-[#1E2734] hover:text-[#E7E9EC]"
+            aria-label="Zoom in"
+          >
+            <Plus size={12} />
+          </button>
+        </div>
       </div>
     </div>
   );
