@@ -1,7 +1,7 @@
 "use client";
 
 import type { FlightState } from "@/lib/types";
-import { X, Plane, Navigation, Gauge, ArrowUpDown, Radio, ShieldAlert } from "lucide-react";
+import { X, Plane, Navigation, Gauge, ArrowUpDown, Radio, ShieldAlert, Building2, Tag } from "lucide-react";
 
 function formatAlt(m: number | null): string {
   if (m == null) return "Unknown";
@@ -36,6 +36,8 @@ export function FlightDetailPanel({ flight, onClose }: { flight: FlightState | n
     );
   }
 
+  const hasRichData = flight.aircraftDescription || flight.operator || flight.registration;
+
   return (
     <aside className="flex h-full w-full flex-col border-l border-[#1E2734] bg-[#0B0F16] sm:w-[320px]">
       <div className="flex items-center justify-between border-b border-[#1E2734] px-4 py-3">
@@ -52,9 +54,42 @@ export function FlightDetailPanel({ flight, onClose }: { flight: FlightState | n
             {flight.callsign ?? flight.icao24.toUpperCase()}
           </h2>
         </div>
-        <p className="mt-1 font-mono text-[10px] uppercase tracking-wide text-[#5B6572]">
-          {flight.categoryLabel} · {flight.originCountry}
-        </p>
+
+        {/* Real aircraft identity — model, operator, registration — when
+            the data source provides it (airplanes.live does, OpenSky's
+            basic feed doesn't). This is the "who/what is this, really"
+            info a bare category label can't give you. */}
+        {hasRichData ? (
+          <div className="mt-2 space-y-1.5">
+            {flight.aircraftDescription && (
+              <p className="font-sans text-[13px] font-medium text-[#E7E9EC]">
+                {flight.aircraftDescription}
+                {flight.aircraftTypeCode && (
+                  <span className="ml-1.5 font-mono text-[10px] text-[#5B6572]">
+                    ({flight.aircraftTypeCode})
+                  </span>
+                )}
+              </p>
+            )}
+            {flight.operator && (
+              <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#8A93A0]">
+                <Building2 size={11} className="text-[#5B6572]" />
+                {flight.operator}
+              </div>
+            )}
+            {flight.registration && (
+              <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#8A93A0]">
+                <Tag size={11} className="text-[#5B6572]" />
+                Registration {flight.registration}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-wide text-[#5B6572]">
+            {flight.categoryLabel}
+            {flight.originCountry && flight.originCountry !== "Unknown" ? ` · ${flight.originCountry}` : ""}
+          </p>
+        )}
 
         {flight.onGround && (
           <div className="mt-3 flex items-center gap-1.5 rounded-sm border border-[#FFB020]/30 bg-[#FFB020]/5 px-3 py-2">
@@ -80,14 +115,18 @@ export function FlightDetailPanel({ flight, onClose }: { flight: FlightState | n
             <div className="text-[#C4CAD2]">
               <div>ICAO24: {flight.icao24.toUpperCase()}</div>
               {flight.squawk && <div className="mt-0.5 text-[#8A93A0]">Squawk: {flight.squawk}</div>}
+              {!hasRichData && flight.categoryLabel && (
+                <div className="mt-0.5 text-[#8A93A0]">Category: {flight.categoryLabel}</div>
+              )}
             </div>
           </div>
           <div className="text-[#5B6572]">Position last updated {timeAgo(flight.lastContact)}</div>
         </div>
 
         <p className="mt-5 font-mono text-[10px] leading-relaxed text-[#5B6572]">
-          Position data from OpenSky Network's crowdsourced ADS-B receiver network. Aircraft without an
-          active transponder, or outside receiver coverage, won't appear here.
+          Position from crowdsourced ADS-B receiver networks (OpenSky Network, or airplanes.live when
+          OpenSky is unreachable). Aircraft without an active transponder, or outside receiver coverage,
+          won't appear here.
         </p>
       </div>
     </aside>
