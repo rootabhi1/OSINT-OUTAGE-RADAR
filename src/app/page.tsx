@@ -134,18 +134,15 @@ export default function Home() {
         </div>
       )}
 
+      {/* Every map tab uses the same pattern: the globe is an absolute-fill
+          layer (so it always renders at full container size, never shrunk
+          by sidebars), and the list/detail panels float on top as overlays
+          with their own shadow — the pointer-events-none wrapper lets clicks
+          pass through the empty middle straight to the globe underneath. */}
+
       {mode === "outages" && (
-        <div className="flex flex-1 overflow-hidden">
-          <div className="hidden sm:block sm:h-full">
-            <OutageList
-              outages={outages}
-              selectedId={selectedOutage?.id ?? null}
-              onSelect={setSelectedOutage}
-              filter={filter}
-              onFilterChange={setFilter}
-            />
-          </div>
-          <div className="relative flex-1">
+        <div className="relative flex-1 overflow-hidden">
+          <div className="absolute inset-0">
             {outagesLoading && !outageData && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
                 <p className="animate-pulse font-mono text-[11px] tracking-widest text-[#5B6572]">
@@ -155,8 +152,24 @@ export default function Home() {
             )}
             <OutageMap outages={outages} selectedId={selectedOutage?.id ?? null} onSelect={setSelectedOutage} />
           </div>
-          <DetailPanel outage={selectedOutage} onClose={() => setSelectedOutage(null)} />
-          <div className="block h-52 border-t border-[#1E2734] sm:hidden">
+
+          <div className="pointer-events-none absolute inset-0 z-20 hidden sm:flex">
+            <div className="pointer-events-auto h-full w-[340px] shadow-2xl shadow-black/50">
+              <OutageList
+                outages={outages}
+                selectedId={selectedOutage?.id ?? null}
+                onSelect={setSelectedOutage}
+                filter={filter}
+                onFilterChange={setFilter}
+              />
+            </div>
+            <div className="flex-1" />
+            <div className="pointer-events-auto h-full w-[320px] shadow-2xl shadow-black/50">
+              <DetailPanel outage={selectedOutage} onClose={() => setSelectedOutage(null)} />
+            </div>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 z-20 block h-52 border-t border-[#1E2734] sm:hidden">
             <OutageList
               outages={outages}
               selectedId={selectedOutage?.id ?? null}
@@ -169,15 +182,8 @@ export default function Home() {
       )}
 
       {mode === "threats" && (
-        <div className="flex flex-1 overflow-hidden">
-          <div className="hidden sm:block sm:h-full">
-            <ThreatList
-              threats={threats}
-              selectedId={selectedThreat?.id ?? null}
-              onSelect={setSelectedThreat}
-            />
-          </div>
-          <div className="relative flex-1">
+        <div className="relative flex-1 overflow-hidden">
+          <div className="absolute inset-0">
             {threatsLoading && !threatData && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
                 <p className="animate-pulse font-mono text-[11px] tracking-widest text-[#5B6572]">
@@ -187,28 +193,26 @@ export default function Home() {
             )}
             <ThreatMap threats={threats} selectedId={selectedThreat?.id ?? null} onSelect={setSelectedThreat} />
           </div>
-          <ThreatDetailPanel threat={selectedThreat} onClose={() => setSelectedThreat(null)} />
-          <div className="block h-52 border-t border-[#1E2734] sm:hidden">
-            <ThreatList
-              threats={threats}
-              selectedId={selectedThreat?.id ?? null}
-              onSelect={setSelectedThreat}
-            />
+
+          <div className="pointer-events-none absolute inset-0 z-20 hidden sm:flex">
+            <div className="pointer-events-auto h-full w-[340px] shadow-2xl shadow-black/50">
+              <ThreatList threats={threats} selectedId={selectedThreat?.id ?? null} onSelect={setSelectedThreat} />
+            </div>
+            <div className="flex-1" />
+            <div className="pointer-events-auto h-full w-[320px] shadow-2xl shadow-black/50">
+              <ThreatDetailPanel threat={selectedThreat} onClose={() => setSelectedThreat(null)} />
+            </div>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 z-20 block h-52 border-t border-[#1E2734] sm:hidden">
+            <ThreatList threats={threats} selectedId={selectedThreat?.id ?? null} onSelect={setSelectedThreat} />
           </div>
         </div>
       )}
 
       {mode === "flights" && (
-        <div className="flex flex-1 overflow-hidden">
-          <div className="hidden sm:block sm:h-full">
-            <FlightList
-              flights={flights}
-              selectedId={selectedFlight?.icao24 ?? null}
-              onSelect={setSelectedFlight}
-              totalCount={flights.length}
-            />
-          </div>
-          <div className="relative flex-1">
+        <div className="relative flex-1 overflow-hidden">
+          <div className="absolute inset-0">
             {flightsLoading && !flightData && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
                 <p className="animate-pulse font-mono text-[11px] tracking-widest text-[#5B6572]">
@@ -218,8 +222,23 @@ export default function Home() {
             )}
             <FlightMap flights={flights} selectedId={selectedFlight?.icao24 ?? null} onSelect={setSelectedFlight} />
           </div>
-          <FlightDetailPanel flight={selectedFlight} onClose={() => setSelectedFlight(null)} />
-          <div className="block h-52 border-t border-[#1E2734] sm:hidden">
+
+          <div className="pointer-events-none absolute inset-0 z-20 hidden sm:flex">
+            <div className="pointer-events-auto h-full w-[340px] shadow-2xl shadow-black/50">
+              <FlightList
+                flights={flights}
+                selectedId={selectedFlight?.icao24 ?? null}
+                onSelect={setSelectedFlight}
+                totalCount={flights.length}
+              />
+            </div>
+            <div className="flex-1" />
+            <div className="pointer-events-auto h-full w-[320px] shadow-2xl shadow-black/50">
+              <FlightDetailPanel flight={selectedFlight} onClose={() => setSelectedFlight(null)} />
+            </div>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 z-20 block h-52 border-t border-[#1E2734] sm:hidden">
             <FlightList
               flights={flights}
               selectedId={selectedFlight?.icao24 ?? null}
