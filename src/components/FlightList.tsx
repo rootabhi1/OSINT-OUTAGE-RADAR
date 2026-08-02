@@ -36,7 +36,11 @@ export function FlightList({
           f.callsign?.toLowerCase().includes(q) ||
           f.originCountry?.toLowerCase().includes(q) ||
           f.icao24.toLowerCase().includes(q) ||
-          f.categoryLabel.toLowerCase().includes(q)
+          f.categoryLabel.toLowerCase().includes(q) ||
+          f.aircraftTypeCode?.toLowerCase().includes(q) ||
+          f.aircraftDescription?.toLowerCase().includes(q) ||
+          f.operator?.toLowerCase().includes(q) ||
+          f.registration?.toLowerCase().includes(q)
       )
       .slice(0, 60);
   }, [flights, query]);
@@ -96,7 +100,9 @@ export function FlightList({
                 <span className="font-mono text-[12px] font-medium text-[#E7E9EC]">
                   {f.callsign ?? f.icao24.toUpperCase()}
                 </span>
-                <span className="font-mono text-[9px] text-[#5B6572]">{f.categoryLabel}</span>
+                <span className="font-mono text-[9px] text-[#5B6572]">
+                  {f.aircraftTypeCode ?? f.categoryLabel}
+                </span>
               </div>
               <div className="mt-1 flex items-center justify-between font-mono text-[10px] text-[#8A93A0]">
                 <span>{f.originCountry}</span>
