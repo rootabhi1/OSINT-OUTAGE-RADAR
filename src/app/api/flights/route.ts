@@ -163,7 +163,7 @@ function parseAirplanesLiveAircraft(raw: any): FlightState | null {
   return {
     icao24: raw.hex,
     callsign: raw.flight ? String(raw.flight).trim() || null : null,
-    originCountry: raw.r ? `Registered: ${raw.r}` : "Unknown",
+    originCountry: raw.ownOp || "Unknown",
     longitude: raw.lon,
     latitude: raw.lat,
     baroAltitude: onGround ? 0 : (raw.alt_baro ?? null),
@@ -176,6 +176,10 @@ function parseAirplanesLiveAircraft(raw: any): FlightState | null {
     category: numericCategory,
     categoryLabel: CATEGORY_LABELS[numericCategory] ?? "Unknown",
     lastContact: Math.floor(Date.now() / 1000) - Math.round(raw.seen ?? 0),
+    aircraftTypeCode: raw.t || undefined,
+    aircraftDescription: raw.desc || undefined,
+    operator: raw.ownOp || undefined,
+    registration: raw.r || undefined,
   };
 }
 
