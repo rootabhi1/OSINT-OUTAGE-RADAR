@@ -116,6 +116,12 @@ export interface FlightState {
   category: number;
   categoryLabel: string;
   lastContact: number; // unix seconds
+  /** Only populated by the airplanes.live source — OpenSky's basic feed
+   * doesn't include aircraft type/model/operator at all. */
+  aircraftTypeCode?: string; // e.g. "E190"
+  aircraftDescription?: string; // e.g. "EMBRAER ERJ-190-100"
+  operator?: string; // e.g. "Klm Cityhopper"
+  registration?: string; // e.g. "PH-EZY"
 }
 
 export interface FlightsResponse {
