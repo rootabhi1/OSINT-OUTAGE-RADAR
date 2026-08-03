@@ -123,7 +123,7 @@ export default function Home() {
         : { total: outages.length, ongoing: outageData?.ongoingCount ?? 0, demo: !!outageData?.demo, lastUpdated: outageData?.fetchedAt ?? null };
 
   return (
-    <main className="flex h-screen w-screen flex-col overflow-hidden bg-[#0A0D12] text-[#E7E9EC]">
+    <main className="flex h-dvh w-screen min-h-0 flex-col overflow-hidden bg-[#0A0D12] text-[#E7E9EC]">
       <TopBar {...topBarProps} />
       <ModeTabs mode={mode} onChange={setMode} />
 
@@ -141,7 +141,7 @@ export default function Home() {
           pass through the empty middle straight to the globe underneath. */}
 
       {mode === "outages" && (
-        <div className="relative flex-1 overflow-hidden">
+        <div className="relative flex-1 min-h-0 overflow-hidden">
           <div className="absolute inset-0">
             {outagesLoading && !outageData && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
@@ -182,7 +182,7 @@ export default function Home() {
       )}
 
       {mode === "threats" && (
-        <div className="relative flex-1 overflow-hidden">
+        <div className="relative flex-1 min-h-0 overflow-hidden">
           <div className="absolute inset-0">
             {threatsLoading && !threatData && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
@@ -211,7 +211,7 @@ export default function Home() {
       )}
 
       {mode === "flights" && (
-        <div className="relative flex-1 overflow-hidden">
+        <div className="relative flex-1 min-h-0 overflow-hidden">
           <div className="absolute inset-0">
             {flightsLoading && !flightData && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0D12]">
