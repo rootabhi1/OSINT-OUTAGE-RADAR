@@ -47,7 +47,7 @@ export function DetailPanel({
   const live = !outage.endDate;
 
   return (
-    <aside className="flex h-full w-full flex-col border-l border-[#1E2734] bg-[#0B0F16] sm:w-[320px]">
+    <aside className="flex h-full w-full min-h-0 flex-col border-l border-[#1E2734] bg-[#0B0F16] sm:w-[320px]">
       <div className="flex items-center justify-between border-b border-[#1E2734] px-4 py-3">
         <span className="font-mono text-[10px] tracking-widest text-[#5B6572]">
           EVENT DETAIL
@@ -57,7 +57,7 @@ export function DetailPanel({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="flex items-center gap-2">
           <span
             className={`h-2 w-2 rounded-full ${live ? "animate-pulse" : ""}`}
