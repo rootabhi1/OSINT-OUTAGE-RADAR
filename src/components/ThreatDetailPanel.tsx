@@ -38,7 +38,7 @@ export function ThreatDetailPanel({ threat, onClose }: { threat: ThreatEvent | n
   const color = KIND_COLOR[threat.kind];
 
   return (
-    <aside className="flex h-full w-full flex-col border-l border-[#1E2734] bg-[#0B0F16] sm:w-[320px]">
+    <aside className="flex h-full w-full min-h-0 flex-col border-l border-[#1E2734] bg-[#0B0F16] sm:w-[320px]">
       <div className="flex items-center justify-between border-b border-[#1E2734] px-4 py-3">
         <span className="font-mono text-[10px] tracking-widest text-[#5B6572]">THREAT DETAIL</span>
         <button onClick={onClose} className="text-[#5B6572] hover:text-[#E7E9EC]" aria-label="Close">
@@ -46,7 +46,7 @@ export function ThreatDetailPanel({ threat, onClose }: { threat: ThreatEvent | n
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
           <h2 className="font-mono text-[13px] font-semibold text-[#E7E9EC]">{KIND_TITLE[threat.kind]}</h2>
