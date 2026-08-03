@@ -46,7 +46,7 @@ export function FlightList({
   }, [flights, query]);
 
   return (
-    <aside className="flex h-full w-full flex-col border-r border-[#1E2734] bg-[#0B0F16] sm:w-[340px]">
+    <aside className="flex h-full w-full min-h-0 flex-col border-r border-[#1E2734] bg-[#0B0F16] sm:w-[340px]">
       <div className="border-b border-[#1E2734] px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Plane size={13} className="text-[#43D9C8]" />
@@ -70,7 +70,7 @@ export function FlightList({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {!query.trim() && (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-16 text-center">
             <Plane size={20} className="text-[#3A4553]" />
